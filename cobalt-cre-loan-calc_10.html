@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CRE Debt Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #f6f8fb; --surface: #ffffff; --surface-sunk: #eef1f6;
+    --ink: #0f1e33; --ink-soft: #33475f; --ink-faint: #64748b; --line: #e2e8f0;
+    --cobalt: #0047AB; --cobalt-dark: #002347; --cobalt-tint: #e7edf9;
+    --amber: #9a6a12; --amber-tint: #fbf0dd;
+    --green: #0f7a4a; --green-tint: #e3f2ea;
+    --red: #b3261e; --red-tint: #f8e9e7;
+    --radius: 8px; --shadow: 0 1px 2px rgba(15,30,51,0.04), 0 8px 24px -12px rgba(15,30,51,0.14);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif; font-feature-settings:'tnum' 1; font-variant-numeric: tabular-nums; }
+  .display{ font-family:'Sora',sans-serif; }
+  .topbar{ max-width:1180px; margin:0 auto; padding:28px 28px 0; display:flex; align-items:flex-end; justify-content:space-between; gap:20px; margin-bottom:22px; flex-wrap:wrap; }
+  #inputWrap{ max-width:1180px; margin:0 auto; padding:0 28px 80px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand-mark svg{ height:34px; width:auto; display:block; }
+  .eyebrow{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-soft); margin-bottom:3px; }
+  .brand h1{ font-size:20px; margin:0; font-weight:600; letter-spacing:-0.01em; }
+  .brand p{ margin:1px 0 0; font-size:12.5px; color:var(--ink-soft); }
+  .actions{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+  button{ font-family:inherit; cursor:pointer; }
+  .btn{ border:1px solid var(--line); background:var(--surface); color:var(--ink); padding:8px 14px; border-radius:6px;
+    font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:7px; transition:border-color .15s, background .15s; }
+  .btn:hover{ border-color:var(--cobalt); background:var(--cobalt-tint); }
+  .btn-primary{ background:var(--cobalt); border-color:var(--cobalt); color:#fff; }
+  .btn-primary:hover{ background:var(--cobalt-dark); border-color:var(--cobalt-dark); }
+  .btn-ghost{ color:var(--ink-soft); }
+  .btn-ghost:hover{ background:var(--surface-sunk); color:var(--ink); border-color:var(--ink-faint); }
+  .btn-danger{ color:var(--red); border-color:var(--red-tint); background:var(--red-tint); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; }
+
+  select.tool-switcher{ padding:8px 10px; border:1px solid var(--line); border-radius:6px; font-size:12.5px; font-family:inherit; background:var(--surface); }
+
+  .dealbar{ display:flex; gap:10px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+  select#dealSelect{ flex:1; min-width:220px; padding:9px 11px; border:1px solid var(--line); border-radius:8px; font-size:13px; font-family:inherit; background:var(--surface); }
+
+  .typepicker{ display:flex; gap:10px; margin-bottom:22px; }
+  .typepicker .opt{ flex:1; padding:14px 16px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface); cursor:pointer; transition:border-color .15s, background .15s; }
+  .typepicker .opt:hover{ border-color:var(--cobalt); }
+  .typepicker .opt.active{ border-color:var(--cobalt); background:var(--cobalt-tint); }
+  .typepicker .opt h3{ margin:0 0 3px; font-size:14px; font-family:'Sora',sans-serif; }
+  .typepicker .opt p{ margin:0; font-size:11.5px; color:var(--ink-soft); }
+
+  .panel{ background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); margin-bottom:16px; box-shadow:var(--shadow); }
+  .panel-head{ padding:13px 18px; border-bottom:1px solid var(--line); }
+  .panel-head h2{ font-size:13.5px; margin:0; font-weight:600; }
+  .panel-head p{ font-size:11.5px; color:var(--ink-soft); margin:3px 0 0; }
+  .panel-body{ padding:16px 18px; display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .panel-body.cols2{ grid-template-columns:repeat(2,1fr); }
+  .field{ display:flex; flex-direction:column; gap:5px; }
+  .field.span2{ grid-column:span 2; }
+  .field.span3{ grid-column:span 3; }
+  .field label{ font-size:11.5px; font-weight:600; color:var(--ink-soft); }
+  .field label small{ font-weight:400; color:var(--ink-faint); text-transform:none; letter-spacing:0; display:block; margin-top:2px; }
+  .field input, .field select, .field textarea{ padding:8px 10px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-family:inherit; background:var(--surface); color:var(--ink); }
+  .field textarea{ min-height:56px; resize:vertical; }
+  .gate-row{ display:flex; align-items:center; gap:8px; }
+  .gate-row input[type=checkbox]{ width:16px; height:16px; accent-color:var(--cobalt); }
+  .gate-row label{ font-size:12.5px; font-weight:500; color:var(--ink); }
+
+  .evalbar{ display:grid; grid-template-columns:repeat(6,1fr); gap:1px; background:var(--line); border:1px solid var(--line);
+    border-radius:var(--radius); overflow:hidden; margin-bottom:18px; }
+  @media (max-width:900px){ .evalbar{ grid-template-columns:repeat(3,1fr); } }
+  .evalbar .cell{ background:var(--surface); padding:13px 14px; }
+  .evalbar .num{ font-family:'Sora',sans-serif; font-size:19px; font-weight:700; line-height:1; }
+  .evalbar .num.pass{ color:var(--green); }
+  .evalbar .num.fail{ color:var(--red); }
+  .evalbar .lbl{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-soft); margin-top:5px; text-transform:uppercase; letter-spacing:.06em; }
+  .status-pill{ display:inline-flex; align-items:center; gap:6px; padding:4px 11px; border-radius:20px; font-size:12px; font-weight:600; }
+  .status-pill.ready{ background:var(--green-tint); color:var(--green); }
+  .status-pill.gaps{ background:var(--amber-tint); color:var(--amber); }
+  .binding-tag{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
+
+  .poststab{ margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); font-size:12.5px; color:var(--ink-soft); }
+  .poststab b{ color:var(--ink); }
+
+  .savebar{ display:flex; justify-content:flex-end; gap:10px; margin-top:6px; }
+  .toast{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px;
+    border-radius:8px; font-size:12.5px; z-index:100; opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+
+  .authgate{ position:fixed; inset:0; background:var(--bg); display:flex; align-items:center; justify-content:center; z-index:200; padding:24px; }
+  .authcard{ background:var(--surface); border:1px solid var(--line); border-radius:14px; width:100%; max-width:380px; padding:28px 28px 24px; box-shadow:var(--shadow); }
+  .authcard h1{ font-size:20px; margin:0 0 3px; }
+  .authcard p.sub{ font-size:12.5px; color:var(--ink-soft); margin:0 0 20px; }
+  .authcard label{ display:block; font-size:12px; font-weight:600; margin-bottom:5px; margin-top:14px; }
+  .authcard input{ width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:8px; font-size:13.5px; font-family:inherit; }
+  .authcard .btn-primary{ width:100%; justify-content:center; margin-top:18px; padding:10px; }
+  .authcard .err{ font-size:12.5px; color:var(--red); margin-top:10px; display:none; }
+  .authcard .err.show{ display:block; }
+
+  .print-only{ display:none; }
+
+  #reportWrap{ display:none; max-width:1180px; margin:0 auto; padding:0 28px 80px; }
+  #reportWrap.visible{ display:block; }
+  .report-toolbar{ display:flex; justify-content:flex-end; gap:10px; margin-bottom:18px; }
+  .sheet{ background:#fff; max-width:850px; margin:0 auto 24px; padding:56px 60px; box-shadow:var(--shadow); border-radius:var(--radius); position:relative; }
+  .sheet-header{ display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid var(--cobalt-dark); padding-bottom:12px; margin-bottom:24px; }
+  .sheet-header .mark svg{ height:30px; width:auto; display:block; }
+  .sheet-header .co{ text-align:right; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--cobalt); }
+  .sheet-header .co strong{ display:block; font-family:'Sora',sans-serif; font-size:14px; color:var(--cobalt-dark); }
+  .pl-status{ display:inline-block; padding:3px 11px; border-radius:14px; font-size:11.5px; font-weight:700; margin-top:8px; }
+  .pl-status.ready{ background:var(--green-tint); color:var(--green); }
+  .pl-status.gaps{ background:var(--amber-tint); color:var(--amber); }
+  .pl-section{ margin-bottom:18px; }
+  .pl-section h2{ font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--cobalt); border-bottom:1px solid var(--line); padding-bottom:5px; margin:0 0 8px; }
+  .pl-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px 18px; font-size:12.5px; }
+  .pl-grid div b{ display:block; color:var(--ink-faint); font-size:10px; text-transform:uppercase; letter-spacing:.04em; font-weight:600; margin-bottom:2px; }
+  .pl-notes{ font-size:12px; color:var(--ink-soft); white-space:pre-wrap; line-height:1.5; }
+
+  @media print{
+    body{ background:#fff; }
+    .authgate, .topbar, #inputWrap, .no-print{ display:none !important; }
+    #reportWrap{ display:block !important; }
+    .sheet{ box-shadow:none; border-radius:0; margin:0; padding:0.4in 0.6in; max-width:none; }
+    @page{ size:letter; margin:0; }
+    .pl-section{ page-break-inside:avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="authgate" id="authGate">
+  <div class="authcard">
+    <h1 class="display">Sign in</h1>
+    <p class="sub">CRE Debt Calculator — for the team only.</p>
+    <label>Email</label>
+    <input type="email" id="authEmail" autocomplete="username">
+    <label>Password</label>
+    <input type="password" id="authPassword" autocomplete="current-password">
+    <button class="btn btn-primary" id="authSubmit">Sign in</button>
+    <div class="err" id="authErr"></div>
+  </div>
+</div>
+
+<div id="mainApp" style="display:none;">
+
+  <div class="topbar no-print">
+    <div class="brand">
+      <div class="brand-mark"><svg viewBox="140 270 745 225" xmlns="http://www.w3.org/2000/svg"><polygon fill="#1a4b8c" points="242.74669 285.5804 256.15816 374.10946 327.42649 334.47028"/><polygon fill="#4a7fc4" points="329.32111 430.70878 329.32111 335.56417 258.07371 383.13647"/><polygon fill="#002347" points="154.63524 335.56417 154.63524 430.70878 225.88271 383.13647"/><polygon fill="#0047ab" points="227.7982 374.10946 241.20966 285.5804 156.52986 334.47028"/><polygon fill="#0047ab" points="227.7982 392.16349 155.13954 432.57591 241.4713 482.4196"/><polygon fill="#1a4b8c" points="256.15816 392.16349 242.48506 482.4196 328.81682 432.57591"/></svg></div>
+      <div>
+        <div class="eyebrow">Cobalt Commercial Credit</div>
+        <h1 class="display">CRE Debt Calculator</h1>
+        <p>Ground-up · acquisition · refi — prequal, evaluate, present</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" id="newDealBtn">+ New deal</button>
+      <button class="btn btn-danger" id="deleteDealBtn">Delete deal</button>
+      <button class="btn btn-primary" id="exportPreLookBtn">Generate Report</button>
+      <select class="tool-switcher" id="toolSwitcher">
+        <option value="">Switch tool…</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-hub/">🏠 Terminal</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-debt-deals/">Pipeline</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-prospect-engine/">CRE Cold Outreach</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-slb-calculator/">SLB Calculator</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-debt-capacity-calc/">Debt Capacity Calculator</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-treasury-audit/">Treasury Firepower Audit</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-referral-partners/">Referral Partner Tracker</option>
+        <option value="https://cobaltcommercialcredit.github.io/cobalt-bank-matrix/">Bank Matrix</option>
+      </select>
+      <button class="btn btn-ghost" id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+
+  <div id="inputWrap">
+  <div class="dealbar">
+    <select id="dealSelect"><option value="">— Select a deal —</option></select>
+    <input type="text" id="companyName" placeholder="Company / borrowing entity name" style="flex:1;min-width:220px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;">
+  </div>
+
+  <div class="typepicker" id="typePicker">
+    <div class="opt" data-type="ground_up"><h3>Ground-Up Construction</h3><p>Land + build, primary calc: LTC</p></div>
+    <div class="opt" data-type="acquisition"><h3>Acquisition</h3><p>Purchase, primary calc: LTV / DSCR / Debt Yield</p></div>
+    <div class="opt" data-type="refi"><h3>Refinance</h3><p>Existing debt, primary calc: LTV / DSCR / Debt Yield</p></div>
+  </div>
+
+  <div class="evalbar" id="evalBar"></div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Property &amp; Sponsor</h2></div>
+    <div class="panel-body">
+      <div class="field"><label>Property address</label><input type="text" id="propertyAddress"></div>
+      <div class="field"><label>Property type</label>
+        <select id="propertyType"><option value="">—</option><option>Hotel</option><option>Multifamily</option><option>Industrial</option><option>Retail</option><option>Office</option><option>Mixed-Use</option><option>Other</option></select>
+      </div>
+      <div class="field"><label>Sponsor / borrowing entity</label><input type="text" id="sponsorEntity"></div>
+      <div class="field"><label>Contact name</label><input type="text" id="contactName"></div>
+      <div class="field"><label>Phone</label><input type="text" id="phone"></div>
+      <div class="field"><label>Email</label><input type="text" id="email"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Sponsor Experience &amp; Track Record</h2><p>Ground-up experience and acquisition/ownership experience are tracked separately — they answer different lender questions.</p></div>
+    <div class="panel-body cols2">
+      <div class="field"><label>Years in business / operating</label><input type="text" inputmode="decimal" id="sponsorYears"></div>
+      <div class="field"><label># of similar projects completed (this deal type)</label><input type="text" inputmode="decimal" id="sponsorSimilarCount"></div>
+      <div class="field span2"><label>Experience notes</label><textarea id="sponsorNotes" placeholder="e.g. prior ground-up projects, brands operated, portfolio size, exits"></textarea></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Guarantor Financial Strength</h2><p>PFS-style summary</p></div>
+    <div class="panel-body cols2">
+      <div class="field"><label>Guarantor net worth</label><input type="text" inputmode="decimal" id="guarantorNetWorth"></div>
+      <div class="field"><label>Guarantor liquidity</label><input type="text" inputmode="decimal" id="guarantorLiquidity"></div>
+      <div class="field span2"><label>Credit band</label>
+        <select id="guarantorCreditBand"><option value="">—</option><option>Excellent (740+)</option><option>Good (680-739)</option><option>Fair (620-679)</option><option>Below 620</option></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Requested Loan Terms</h2></div>
+    <div class="panel-body">
+      <div class="field"><label>Requested amount</label><input type="text" inputmode="decimal" id="requestedAmount"></div>
+      <div class="field"><label>Requested term (months, to maturity/balloon)</label><input type="text" inputmode="decimal" id="requestedTerm"></div>
+      <div class="field"><label>Proposed rate (%)</label><input type="text" inputmode="decimal" id="proposedRate"></div>
+      <div class="field"><label>Amortization period (years)</label><input type="text" inputmode="decimal" id="amortYears" placeholder="e.g. 25 — can exceed loan term if there's a balloon"></div>
+      <div class="field"><label>Borrower annual revenue</label><input type="text" inputmode="decimal" id="borrowerRevenue"></div>
+      <div class="field"><label>SBA size standard for this NAICS <small>Verify current figure at sba.gov/size-standards before relying on it</small></label><input type="text" inputmode="decimal" id="sbaSizeStandard"></div>
+      <div class="field span3"><label>Loan purpose</label><textarea id="loanPurpose"></textarea></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Underwriting Thresholds</h2><p>Editable — set to what the target lender actually requires once you know it; these are typical conventional starting points, not universal rules.</p></div>
+    <div class="panel-body">
+      <div class="field"><label>Max LTV / LTC (%)</label><input type="text" inputmode="decimal" id="ltvMaxPct"></div>
+      <div class="field"><label>Min DSCR (x)</label><input type="text" inputmode="decimal" id="dscrMin"></div>
+      <div class="field"><label>Min Debt Yield (%)</label><input type="text" inputmode="decimal" id="dyMinPct"></div>
+    </div>
+  </div>
+
+  <div id="branchSections"></div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Deal Commentary</h2><p>Free-form write-up — context, story, strengths, concerns. Goes into the report as-is, under Loan Purpose.</p></div>
+    <div class="panel-body">
+      <div class="field span3"><textarea id="dealCommentary" style="min-height:120px;" placeholder="e.g. why this deal, what makes the sponsor a strong fit, anything a banker should know going in..."></textarea></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h2>Status &amp; Notes</h2><p>Use "Move to Pipeline" once this deal is ready for real tracking to funding — it auto-creates the Pipeline entry, links back here, and sets stage to Moved to Pipeline for you.</p></div>
+    <div class="panel-body cols2">
+      <div class="field"><label>Stage</label>
+        <select id="stage"><option>Qualifying</option><option>Shopping</option><option>Term Sheet</option><option>In Underwriting</option><option>Moved to Pipeline</option><option>Dead</option></select>
+      </div>
+      <div class="field"><label>Assigned to</label>
+        <select id="assignedTo"><option value="">—</option><option>Curtis</option><option>Armen</option><option>Lina</option></select>
+      </div>
+      <div class="field span2" id="pipelineLinkStatus" style="display:none;font-size:12.5px;color:var(--ink-soft);"></div>
+      <div class="field span2">
+        <button class="btn btn-primary" id="moveToPipelineBtn" style="width:fit-content;">Move to Pipeline →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="savebar">
+    <button class="btn btn-primary" id="exportPreLookBtnBottom">Generate Report</button>
+    <button class="btn btn-primary" id="saveDealBtn">Save deal</button>
+  </div>
+  </div>
+
+  <div id="reportWrap">
+    <div class="report-toolbar no-print">
+      <button class="btn btn-ghost" id="backToEditBtn">&larr; Back to edit</button>
+      <button class="btn btn-primary" id="printReportBtn">Download / Print PDF</button>
+    </div>
+    <div class="sheet" id="preLookPrint"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  var SUPABASE_URL = 'https://pdqywwxyibnapeytoalk.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_gAk4DGF0YlBxFQkcO92reQ_cb9H91lQ';
+  var REST = SUPABASE_URL + '/rest/v1';
+  var AUTH = SUPABASE_URL + '/auth/v1';
+
+  var state = { session:null, deals:[], currentId:null, dealType:'ground_up', linkedPipelineDealId:null, linkedPipelineDealName:null, linkedProspectId:null, linkedProspectName:null };
+
+  function $(id){ return document.getElementById(id); }
+  function toast(msg){ var t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(function(){t.classList.remove('show');},2400); }
+  function num(v){ if(v===''||v==null) return null; var n=parseFloat(String(v).replace(/[$,%]/g,'')); return isNaN(n)?null:n; }
+  function fmtMoney(v){ if(v==null||isNaN(v)) return '—'; return '$'+Math.round(v).toLocaleString(); }
+  function fmtPct(v){ if(v==null||isNaN(v)) return '—'; return (v*100).toFixed(1)+'%'; }
+
+  function sbHeaders(extra){
+    var h = { 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' };
+    if(state.session && state.session.access_token){ h['Authorization'] = 'Bearer ' + state.session.access_token; }
+    return Object.assign(h, extra||{});
+  }
+  async function authSignIn(email,password){
+    var res = await fetch(AUTH+'/token?grant_type=password',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({email:email,password:password})});
+    var data = await res.json();
+    if(!res.ok) throw new Error(data.error_description||data.msg||'Incorrect email or password');
+    return data;
+  }
+  async function authRefresh(rt){
+    var res = await fetch(AUTH+'/token?grant_type=refresh_token',{method:'POST',headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});
+    var data = await res.json();
+    if(!res.ok) throw new Error('refresh failed');
+    return data;
+  }
+  function saveSession(data){
+    var session = { access_token:data.access_token, refresh_token:data.refresh_token, expires_at: Date.now()+(data.expires_in||3600)*1000, email: data.user&&data.user.email };
+    state.session = session;
+    try{ localStorage.setItem('cobalt_session', JSON.stringify(session)); }catch(e){}
+  }
+  function loadStoredSession(){ try{ var raw=localStorage.getItem('cobalt_session'); if(raw) state.session=JSON.parse(raw); }catch(e){ state.session=null; } }
+  function clearSession(){ state.session=null; try{ localStorage.removeItem('cobalt_session'); }catch(e){} }
+  async function ensureValidSession(){
+    if(!state.session) return false;
+    if(Date.now() < state.session.expires_at - 60000) return true;
+    try{ saveSession(await authRefresh(state.session.refresh_token)); return true; } catch(e){ clearSession(); return false; }
+  }
+
+  // ---------- amortization ----------
+  function pmt(principal, monthlyRate, termMonths){
+    if(!principal || !termMonths) return 0;
+    if(monthlyRate===0) return principal/termMonths;
+    return principal*(monthlyRate*Math.pow(1+monthlyRate,termMonths))/(Math.pow(1+monthlyRate,termMonths)-1);
+  }
+  function annualDebtService(principal, ratePct, amortYearsVal){
+    if(!principal || ratePct==null || !amortYearsVal) return null;
+    var monthlyRate = ratePct/100/12;
+    var termMonths = amortYearsVal*12;
+    return pmt(principal, monthlyRate, termMonths)*12;
+  }
+
+  var GU_GATES = [
+    {key:'gu_entitlement_status', label:'Entitlement / zoning approved'},
+    {key:'gu_gc_gmp_status', label:'GC under contract / GMP set'},
+    {key:'gu_feasibility_status', label:'Feasibility study complete'},
+    {key:'gu_franchise_status', label:'Franchise agreement executed (if hotel)'}
+  ];
+
+  function branchTemplate(type){
+    if(type==='ground_up'){
+      return '<div class="panel"><div class="panel-head"><h2>Ground-Up: Sources &amp; Uses</h2></div><div class="panel-body">'+
+        field('guLand','Land cost')+field('guHard','Hard costs')+field('guSoft','Soft costs')+
+        field('guFfe','FF&E')+field('guContingency','Contingency')+field('guInterestReserve','Interest reserve')+
+        field('guOpdefReserve','Operating deficit reserve')+
+        '</div></div>'+
+        '<div class="panel"><div class="panel-head"><h2>Ground-Up: Timeline &amp; Readiness</h2></div><div class="panel-body cols2">'+
+        field('guStart','Start date','text')+field('guCompletion','Completion date','text')+field('guStabilization','Stabilization date','text')+
+        '<div class="field span2" style="display:flex;flex-direction:column;gap:8px;">'+
+        GU_GATES.map(function(g){ return '<div class="gate-row"><input type="checkbox" id="'+g.key+'"><label for="'+g.key+'">'+g.label+'</label></div>'; }).join('')+
+        '</div></div></div>'+
+        '<div class="panel"><div class="panel-head"><h2>Post-Stabilization: Permanent Takeout</h2><p>DSCR/Debt Yield don\'t exist during construction — no NOI yet. Fill this once there\'s a stabilized pro forma to check the permanent loan against.</p></div><div class="panel-body">'+
+        field('guStabilizedNoi','Stabilized pro forma NOI')+field('guPermRate','Permanent takeout rate (%)')+field('guPermAmortYears','Permanent amortization (years)')+
+        '<div class="field span3"><div class="poststab" id="guPostStabResult">Enter stabilized NOI and permanent terms to see post-stabilization DSCR / Debt Yield.</div></div>'+
+        '</div></div>';
+    }
+    if(type==='acquisition'){
+      return '<div class="panel"><div class="panel-head"><h2>Acquisition Details</h2></div><div class="panel-body">'+
+        field('acqPurchasePrice','Purchase price')+field('acqAppraisedValue','Appraised value')+
+        field('acqInPlaceNoi','In-place NOI')+field('acqProFormaNoi','Pro forma / stabilized NOI')+
+        field('acqPipBudget','PIP budget (if hotel)')+
+        '</div></div>';
+    }
+    if(type==='refi'){
+      return '<div class="panel"><div class="panel-head"><h2>Refinance Details</h2></div><div class="panel-body">'+
+        field('refiCurrentValue','Current / appraised value')+
+        field('refiExistingBalance','Existing balance')+field('refiExistingRate','Existing rate (%)')+field('refiExistingMaturity','Existing maturity','text')+
+        field('refiCurrentNoi','Current NOI')+field('refiCashOut','Cash-out amount')+
+        '<div class="field span3"><label>Reason for refi</label><textarea id="refiReason"></textarea></div>'+
+        '</div></div>';
+    }
+    return '';
+  }
+  function field(id,label,type){
+    type = type||'money';
+    return '<div class="field"><label>'+label+'</label><input type="text" inputmode="'+(type==='text'?'text':'decimal')+'" id="'+id+'"></div>';
+  }
+
+  function renderBranch(){
+    $('branchSections').innerHTML = branchTemplate(state.dealType);
+    document.querySelectorAll('#branchSections input, #branchSections textarea').forEach(function(el){ el.addEventListener('input', renderEval); });
+  }
+
+  function setDealType(t){
+    state.dealType = t;
+    document.querySelectorAll('.typepicker .opt').forEach(function(o){ o.classList.toggle('active', o.dataset.type===t); });
+    renderBranch();
+    renderEval();
+  }
+
+  function computeEval(){
+    var reqAmt = num($('requestedAmount').value);
+    var rate = num($('proposedRate').value);
+    var amortYearsVal = num($('amortYears').value);
+    var ltvMax = (num($('ltvMaxPct').value)||75)/100;
+    var dscrMin = num($('dscrMin').value)||1.25;
+    var dyMin = (num($('dyMinPct').value)||9)/100;
+
+    var out = { ltc:null, ltv:null, dscr:null, dy:null, binding:null, sbaEligible:null, sbaNote:'', ready:false, gaps:[], ltvPass:null, dscrPass:null, dyPass:null };
+
+    if(state.dealType==='ground_up'){
+      var costs = ['guLand','guHard','guSoft','guFfe','guContingency','guInterestReserve','guOpdefReserve'].map(function(id){ var el=$(id); return el ? (num(el.value)||0) : 0; });
+      var totalCost = costs.reduce(function(a,b){return a+b;},0);
+      out.totalProjectCost = totalCost;
+      out.ltc = (reqAmt && totalCost) ? reqAmt/totalCost : null;
+      out.ltvPass = out.ltc!=null ? out.ltc<=ltvMax : null;
+      out.binding = 'LTC';
+      GU_GATES.forEach(function(g){ if(!$(g.key).checked) out.gaps.push(g.label); });
+
+      // post-stabilization secondary check
+      var stabNoi = num($('guStabilizedNoi') ? $('guStabilizedNoi').value : null);
+      var permRate = num($('guPermRate') ? $('guPermRate').value : null);
+      var permAmort = num($('guPermAmortYears') ? $('guPermAmortYears').value : null);
+      var psEl = $('guPostStabResult');
+      if(psEl){
+        if(stabNoi && permRate!=null && permAmort && reqAmt){
+          var permADS = annualDebtService(reqAmt, permRate, permAmort);
+          var permDscr = permADS ? stabNoi/permADS : null;
+          var permDy = reqAmt ? stabNoi/reqAmt : null;
+          psEl.innerHTML = 'At permanent takeout: DSCR <b>'+(permDscr!=null?permDscr.toFixed(2)+'x':'—')+'</b> (min '+dscrMin.toFixed(2)+'x) &nbsp;·&nbsp; Debt Yield <b>'+(permDy!=null?fmtPct(permDy):'—')+'</b> (min '+fmtPct(dyMin)+') — '+
+            ((permDscr!=null && permDscr<dscrMin) || (permDy!=null && permDy<dyMin) ? '<span style="color:var(--red);font-weight:600;">below one or both minimums</span>' : '<span style="color:var(--green);font-weight:600;">clears both minimums</span>');
+        } else {
+          psEl.textContent = 'Enter stabilized NOI and permanent terms to see post-stabilization DSCR / Debt Yield.';
+        }
+      }
+    } else if(state.dealType==='acquisition'){
+      var price = num($('acqPurchasePrice').value);
+      var appraised = num($('acqAppraisedValue').value);
+      var proForma = num($('acqProFormaNoi').value);
+      var inPlace = num($('acqInPlaceNoi').value);
+      var noiForCalc = proForma || inPlace;
+      var val = appraised || price;
+      out.ltv = (reqAmt && val) ? reqAmt/val : null;
+      var ads = (reqAmt && rate!=null && amortYearsVal) ? annualDebtService(reqAmt, rate, amortYearsVal) : null;
+      out.dscr = (noiForCalc && ads) ? noiForCalc/ads : null;
+      out.dy = (noiForCalc && reqAmt) ? noiForCalc/reqAmt : null;
+      out.ltvPass = out.ltv!=null ? out.ltv<=ltvMax : null;
+      out.dscrPass = out.dscr!=null ? out.dscr>=dscrMin : null;
+      out.dyPass = out.dy!=null ? out.dy>=dyMin : null;
+      out.binding = pickBinding(out, ltvMax, dscrMin, dyMin);
+      if(!price) out.gaps.push('Purchase price missing');
+      if(!proForma) out.gaps.push('Pro forma NOI missing');
+      if(rate==null) out.gaps.push('Proposed rate missing');
+      if(!amortYearsVal) out.gaps.push('Amortization period missing');
+    } else if(state.dealType==='refi'){
+      var bal = num($('refiExistingBalance').value);
+      var curNoi = num($('refiCurrentNoi').value);
+      var cashOut = num($('refiCashOut').value)||0;
+      var curVal = num($('refiCurrentValue').value);
+      var totalAsk = reqAmt || ((bal||0) + cashOut);
+      out.ltv = (totalAsk && curVal) ? totalAsk/curVal : null;
+      var ads2 = (totalAsk && rate!=null && amortYearsVal) ? annualDebtService(totalAsk, rate, amortYearsVal) : null;
+      out.dscr = (curNoi && ads2) ? curNoi/ads2 : null;
+      out.dy = (curNoi && totalAsk) ? curNoi/totalAsk : null;
+      out.ltvPass = out.ltv!=null ? out.ltv<=ltvMax : null;
+      out.dscrPass = out.dscr!=null ? out.dscr>=dscrMin : null;
+      out.dyPass = out.dy!=null ? out.dy>=dyMin : null;
+      out.binding = pickBinding(out, ltvMax, dscrMin, dyMin);
+      if(!bal) out.gaps.push('Existing balance missing');
+      if(!curNoi) out.gaps.push('Current NOI missing');
+      if(!curVal) out.gaps.push('Current/appraised value missing');
+      if(rate==null) out.gaps.push('Proposed rate missing');
+      if(!amortYearsVal) out.gaps.push('Amortization period missing');
+    }
+
+    // SBA: hard statutory 7(a) cap is $5M loan amount, independent of industry.
+    // Size-standard (revenue) portion is NAICS-specific and changes periodically — only checked if user supplies the current figure.
+    var revenue = num($('borrowerRevenue').value);
+    var sizeStd = num($('sbaSizeStandard').value);
+    var underCap = reqAmt!=null ? reqAmt<=5000000 : null;
+    if(underCap===false){ out.sbaEligible=false; out.sbaNote='Loan amount exceeds the $5M 7(a) statutory cap'; }
+    else if(underCap===null){ out.sbaEligible=null; out.sbaNote='Enter requested amount'; }
+    else if(sizeStd && revenue!=null){ out.sbaEligible = revenue<=sizeStd; out.sbaNote = out.sbaEligible ? 'Under $5M cap and borrower revenue' : 'Under $5M cap but revenue exceeds entered size standard'; }
+    else { out.sbaEligible = null; out.sbaNote = 'Under $5M cap — enter revenue + size standard to confirm'; }
+
+    if(!reqAmt) out.gaps.push('Requested amount missing');
+    if(!$('sponsorYears').value) out.gaps.push('Sponsor experience not entered');
+    if(!$('guarantorNetWorth').value) out.gaps.push('Guarantor net worth not entered');
+    out.ready = out.gaps.length===0;
+    return out;
+  }
+  function pickBinding(out, ltvMax, dscrMin, dyMin){
+    var candidates = [];
+    if(out.ltv!=null) candidates.push({name:'LTV', cushion: ltvMax-out.ltv});
+    if(out.dscr!=null) candidates.push({name:'DSCR', cushion: out.dscr-dscrMin});
+    if(out.dy!=null) candidates.push({name:'Debt Yield', cushion: out.dy-dyMin});
+    if(!candidates.length) return null;
+    candidates.sort(function(a,b){ return a.cushion-b.cushion; });
+    return candidates[0].name;
+  }
+
+  function renderEval(){
+    var ev = computeEval();
+    var cells = [];
+    if(state.dealType==='ground_up'){
+      cells.push(cell(fmtPct(ev.ltc), 'LTC', ev.ltvPass));
+      cells.push(cell(fmtMoney(ev.totalProjectCost), 'Total project cost', null));
+      cells.push(cell('—','Debt Yield (n/a pre-stab)', null));
+    } else {
+      cells.push(cell(fmtPct(ev.ltv), 'LTV', ev.ltvPass));
+      cells.push(cell(ev.dscr!=null?ev.dscr.toFixed(2)+'x':'—', 'DSCR', ev.dscrPass));
+      cells.push(cell(fmtPct(ev.dy), 'Debt Yield', ev.dyPass));
+    }
+    cells.push(cell(ev.binding||'—','Binding constraint', null));
+    cells.push(cell(ev.sbaEligible==null?'—':(ev.sbaEligible?'Likely':'No'), 'SBA eligible', ev.sbaEligible));
+    cells.push('<div class="cell"><span class="status-pill '+(ev.ready?'ready':'gaps')+'">'+(ev.ready?'Ready to shop':ev.gaps.length+' gap(s)')+'</span>'+
+      (ev.gaps.length?'<div class="binding-tag">'+ev.gaps.slice(0,2).join('; ')+(ev.gaps.length>2?'…':'')+'</div>':'<div class="binding-tag">'+ev.sbaNote+'</div>')+'</div>');
+    $('evalBar').innerHTML = cells.join('');
+  }
+  function cell(numText,lbl,passState){
+    var cls = passState===true?'pass':(passState===false?'fail':'');
+    return '<div class="cell"><div class="num '+cls+'">'+numText+'</div><div class="lbl">'+lbl+'</div></div>';
+  }
+
+  // ---------- persistence ----------
+  function toDbRow(id){
+    var row = {
+      id: id, deal_type: state.dealType, company_name: $('companyName').value,
+      property_address: $('propertyAddress').value, property_type: $('propertyType').value,
+      is_hospitality: $('propertyType').value==='Hotel',
+      sponsor_entity: $('sponsorEntity').value, contact_name: $('contactName').value,
+      phone: $('phone').value, email: $('email').value,
+      sponsor_years_experience: num($('sponsorYears').value), sponsor_similar_projects_count: num($('sponsorSimilarCount').value),
+      sponsor_experience_notes: $('sponsorNotes').value,
+      guarantor_net_worth: num($('guarantorNetWorth').value), guarantor_liquidity: num($('guarantorLiquidity').value),
+      guarantor_credit_band: $('guarantorCreditBand').value,
+      requested_amount: num($('requestedAmount').value), requested_term_months: num($('requestedTerm').value),
+      proposed_rate: num($('proposedRate').value), amort_years: num($('amortYears').value),
+      ltv_max_pct: num($('ltvMaxPct').value), dscr_min: num($('dscrMin').value), debt_yield_min_pct: num($('dyMinPct').value),
+      borrower_annual_revenue: num($('borrowerRevenue').value), sba_size_standard: num($('sbaSizeStandard').value),
+      loan_purpose: $('loanPurpose').value, deal_commentary: $('dealCommentary').value,
+      stage: $('stage').value, assigned_to: $('assignedTo').value,
+      linked_pipeline_deal_id: state.linkedPipelineDealId, linked_pipeline_deal_name: state.linkedPipelineDealName,
+      linked_prospect_id: state.linkedProspectId, linked_prospect_name: state.linkedProspectName,
+      updated_at: new Date().toISOString()
+    };
+    if(state.dealType==='ground_up'){
+      Object.assign(row, {
+        gu_land_cost:num($('guLand').value), gu_hard_costs:num($('guHard').value), gu_soft_costs:num($('guSoft').value),
+        gu_ffe:num($('guFfe').value), gu_contingency:num($('guContingency').value),
+        gu_interest_reserve:num($('guInterestReserve').value), gu_opdef_reserve:num($('guOpdefReserve').value),
+        gu_entitlement_status: $('gu_entitlement_status').checked?'Complete':'Pending',
+        gu_gc_gmp_status: $('gu_gc_gmp_status').checked?'Complete':'Pending',
+        gu_feasibility_status: $('gu_feasibility_status').checked?'Complete':'Pending',
+        gu_franchise_status: $('gu_franchise_status').checked?'Complete':'Pending',
+        gu_start_date:$('guStart').value, gu_completion_date:$('guCompletion').value, gu_stabilization_date:$('guStabilization').value,
+        gu_stabilized_noi:num($('guStabilizedNoi').value), gu_perm_rate:num($('guPermRate').value), gu_perm_amort_years:num($('guPermAmortYears').value)
+      });
+    } else if(state.dealType==='acquisition'){
+      Object.assign(row, {
+        acq_purchase_price:num($('acqPurchasePrice').value), acq_appraised_value:num($('acqAppraisedValue').value),
+        acq_in_place_noi:num($('acqInPlaceNoi').value), acq_pro_forma_noi:num($('acqProFormaNoi').value),
+        acq_pip_budget:num($('acqPipBudget').value)
+      });
+    } else if(state.dealType==='refi'){
+      Object.assign(row, {
+        refi_existing_balance:num($('refiExistingBalance').value), refi_existing_rate:num($('refiExistingRate').value),
+        refi_existing_maturity:$('refiExistingMaturity').value, refi_current_noi:num($('refiCurrentNoi').value),
+        refi_cash_out_amount:num($('refiCashOut').value), refi_reason:$('refiReason').value,
+        refi_current_value:num($('refiCurrentValue').value)
+      });
+    }
+    return row;
+  }
+
+  function loadRowIntoForm(row){
+    state.dealType = row.deal_type||'ground_up';
+    setDealType(state.dealType);
+    $('companyName').value = row.company_name||'';
+    $('propertyAddress').value = row.property_address||'';
+    $('propertyType').value = row.property_type||'';
+    $('sponsorEntity').value = row.sponsor_entity||'';
+    $('contactName').value = row.contact_name||'';
+    $('phone').value = row.phone||'';
+    $('email').value = row.email||'';
+    $('sponsorYears').value = row.sponsor_years_experience!=null?row.sponsor_years_experience:'';
+    $('sponsorSimilarCount').value = row.sponsor_similar_projects_count!=null?row.sponsor_similar_projects_count:'';
+    $('sponsorNotes').value = row.sponsor_experience_notes||'';
+    $('guarantorNetWorth').value = row.guarantor_net_worth!=null?row.guarantor_net_worth:'';
+    $('guarantorLiquidity').value = row.guarantor_liquidity!=null?row.guarantor_liquidity:'';
+    $('guarantorCreditBand').value = row.guarantor_credit_band||'';
+    $('requestedAmount').value = row.requested_amount!=null?row.requested_amount:'';
+    $('requestedTerm').value = row.requested_term_months!=null?row.requested_term_months:'';
+    $('proposedRate').value = row.proposed_rate!=null?row.proposed_rate:'';
+    $('amortYears').value = row.amort_years!=null?row.amort_years:'';
+    $('ltvMaxPct').value = row.ltv_max_pct!=null?row.ltv_max_pct:75;
+    $('dscrMin').value = row.dscr_min!=null?row.dscr_min:1.25;
+    $('dyMinPct').value = row.debt_yield_min_pct!=null?row.debt_yield_min_pct:9;
+    $('borrowerRevenue').value = row.borrower_annual_revenue!=null?row.borrower_annual_revenue:'';
+    $('sbaSizeStandard').value = row.sba_size_standard!=null?row.sba_size_standard:'';
+    $('loanPurpose').value = row.loan_purpose||'';
+    $('dealCommentary').value = row.deal_commentary||'';
+    $('stage').value = row.stage||'Qualifying';
+    $('assignedTo').value = row.assigned_to||'';
+    state.linkedPipelineDealId = row.linked_pipeline_deal_id||null;
+    state.linkedPipelineDealName = row.linked_pipeline_deal_name||null;
+    state.linkedProspectId = row.linked_prospect_id||null;
+    state.linkedProspectName = row.linked_prospect_name||null;
+    renderPipelineLinkStatus();
+    if(state.dealType==='ground_up'){
+      setVal('guLand',row.gu_land_cost); setVal('guHard',row.gu_hard_costs); setVal('guSoft',row.gu_soft_costs);
+      setVal('guFfe',row.gu_ffe); setVal('guContingency',row.gu_contingency);
+      setVal('guInterestReserve',row.gu_interest_reserve); setVal('guOpdefReserve',row.gu_opdef_reserve);
+      $('gu_entitlement_status').checked = row.gu_entitlement_status==='Complete';
+      $('gu_gc_gmp_status').checked = row.gu_gc_gmp_status==='Complete';
+      $('gu_feasibility_status').checked = row.gu_feasibility_status==='Complete';
+      $('gu_franchise_status').checked = row.gu_franchise_status==='Complete';
+      $('guStart').value = row.gu_start_date||''; $('guCompletion').value = row.gu_completion_date||''; $('guStabilization').value = row.gu_stabilization_date||'';
+      setVal('guStabilizedNoi',row.gu_stabilized_noi); setVal('guPermRate',row.gu_perm_rate); setVal('guPermAmortYears',row.gu_perm_amort_years);
+    } else if(state.dealType==='acquisition'){
+      setVal('acqPurchasePrice',row.acq_purchase_price); setVal('acqAppraisedValue',row.acq_appraised_value);
+      setVal('acqInPlaceNoi',row.acq_in_place_noi); setVal('acqProFormaNoi',row.acq_pro_forma_noi); setVal('acqPipBudget',row.acq_pip_budget);
+    } else if(state.dealType==='refi'){
+      setVal('refiCurrentValue',row.refi_current_value);
+      setVal('refiExistingBalance',row.refi_existing_balance); setVal('refiExistingRate',row.refi_existing_rate);
+      $('refiExistingMaturity').value = row.refi_existing_maturity||'';
+      setVal('refiCurrentNoi',row.refi_current_noi); setVal('refiCashOut',row.refi_cash_out_amount);
+      $('refiReason').value = row.refi_reason||'';
+    }
+    renderEval();
+  }
+  function setVal(id,v){ $(id).value = v!=null?v:''; }
+
+  function clearForm(){
+    ['companyName','propertyAddress','sponsorEntity','contactName','phone','email','sponsorYears','sponsorSimilarCount',
+     'sponsorNotes','guarantorNetWorth','guarantorLiquidity','requestedAmount','requestedTerm','proposedRate','amortYears',
+     'borrowerRevenue','sbaSizeStandard','loanPurpose','dealCommentary'].forEach(function(id){ $(id).value=''; });
+    $('propertyType').value=''; $('guarantorCreditBand').value=''; $('stage').value='Qualifying'; $('assignedTo').value='';
+    $('ltvMaxPct').value = 75; $('dscrMin').value = 1.25; $('dyMinPct').value = 9;
+    state.currentId = null;
+    state.linkedPipelineDealId = null; state.linkedPipelineDealName = null;
+    state.linkedProspectId = null; state.linkedProspectName = null;
+    renderPipelineLinkStatus();
+    setDealType('ground_up');
+  }
+
+  function renderPipelineLinkStatus(){
+    var el = $('pipelineLinkStatus');
+    var btn = $('moveToPipelineBtn');
+    var lines = [];
+    if(state.linkedProspectId) lines.push('🔗 From CRE Cold Outreach: <b>'+esc(state.linkedProspectName||'Untitled')+'</b>');
+    if(state.linkedPipelineDealId) lines.push('🔗 Already moved to Pipeline as <b>'+esc(state.linkedPipelineDealName||'Untitled')+'</b>');
+    if(lines.length){
+      el.style.display = 'block';
+      el.innerHTML = lines.join('<br>');
+    } else {
+      el.style.display = 'none';
+    }
+    if(state.linkedPipelineDealId){
+      btn.textContent = 'Already in Pipeline ✓';
+      btn.disabled = true;
+    } else {
+      btn.textContent = 'Move to Pipeline →';
+      btn.disabled = false;
+    }
+  }
+
+  async function moveToPipeline(){
+    if(!state.currentId){ toast('Save this deal first'); return; }
+    if(state.linkedPipelineDealId){ toast('Already moved to Pipeline'); return; }
+    if(!confirm('Create a Pipeline entry for this deal and link it back here? This deal will stop counting on the Hub as a CRE-active deal once moved.')) return;
+    var btn = $('moveToPipelineBtn');
+    btn.disabled = true; btn.textContent = 'Moving…';
+    try{
+      var pipelineId = 'deal:'+Date.now()+Math.random().toString(36).slice(2,8);
+      var companyName = $('companyName').value || 'Untitled';
+      var pipelineRow = {
+        id: pipelineId, company_name: companyName, industry: '', instrument_type: 'CRE Loan',
+        stage: 'Qualifying', estimated_amount: num($('requestedAmount').value),
+        contact_name: $('contactName').value, phone: $('phone').value, email: $('email').value,
+        assigned_to: $('assignedTo').value,
+        linked_cre_deal_id: state.currentId, linked_cre_deal_name: companyName,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString()
+      };
+      var res = await fetch(REST+'/debt_deals', { method:'POST', headers: sbHeaders({'Prefer':'return=minimal'}), body: JSON.stringify(pipelineRow) });
+      if(!res.ok) throw new Error('Pipeline insert failed');
+      state.linkedPipelineDealId = pipelineId;
+      state.linkedPipelineDealName = companyName;
+      $('stage').value = 'Moved to Pipeline';
+      await saveDeal();
+      renderPipelineLinkStatus();
+      toast('Moved to Pipeline — linked both ways');
+    }catch(e){
+      toast('Could not move to Pipeline — check your connection');
+      btn.disabled = false; btn.textContent = 'Move to Pipeline →';
+    }
+  }
+  $('moveToPipelineBtn').addEventListener('click', moveToPipeline);
+
+  async function fetchDeals(){
+    var res = await fetch(REST+'/cre_deals?select=id,company_name,deal_type,requested_amount&order=updated_at.desc', {headers: sbHeaders()});
+    if(!res.ok) return [];
+    return await res.json();
+  }
+  function renderDealSelect(){
+    var sel = $('dealSelect');
+    sel.innerHTML = '<option value="">— Select a deal —</option>' + state.deals.map(function(d){
+      return '<option value="'+d.id+'">'+(d.company_name||'Untitled')+' — '+d.deal_type+' — '+fmtMoney(d.requested_amount)+'</option>';
+    }).join('');
+  }
+  async function refreshDealList(){ state.deals = await fetchDeals(); renderDealSelect(); }
+
+  async function saveDeal(){
+    var id = state.currentId || ('deal:'+Date.now()+Math.random().toString(36).slice(2,8));
+    var row = toDbRow(id);
+    if(!state.currentId) row.created_at = new Date().toISOString();
+    try{
+      var res = await fetch(REST+'/cre_deals?id=eq.'+encodeURIComponent(id), {method:'GET', headers: sbHeaders()});
+      var existing = await res.json();
+      if(existing && existing.length){
+        await fetch(REST+'/cre_deals?id=eq.'+encodeURIComponent(id), {method:'PATCH', headers: sbHeaders({'Prefer':'return=minimal'}), body: JSON.stringify(row)});
+      } else {
+        await fetch(REST+'/cre_deals', {method:'POST', headers: sbHeaders({'Prefer':'return=minimal'}), body: JSON.stringify(row)});
+      }
+      state.currentId = id;
+      toast('Saved');
+      await refreshDealList();
+      $('dealSelect').value = id;
+    }catch(e){ toast('Save failed: '+e.message); }
+  }
+  async function deleteDeal(){
+    if(!state.currentId) { toast('No deal selected'); return; }
+    if(!confirm('Delete this deal permanently?')) return;
+    await fetch(REST+'/cre_deals?id=eq.'+encodeURIComponent(state.currentId), {method:'DELETE', headers: sbHeaders({'Prefer':'return=minimal'})});
+    toast('Deleted');
+    clearForm();
+    await refreshDealList();
+  }
+  async function loadDeal(id){
+    var res = await fetch(REST+'/cre_deals?id=eq.'+encodeURIComponent(id)+'&select=*', {headers: sbHeaders()});
+    var rows = await res.json();
+    if(rows && rows.length){ state.currentId = id; loadRowIntoForm(rows[0]); }
+  }
+
+  // ---------- Lender Pre-Look export ----------
+  var FULL_LOGO_SVG = '<svg viewBox="145 275 735 220" xmlns="http://www.w3.org/2000/svg" height="30">' + '<polygon id="polygon2" fill="#1a4b8c" points="242.74669 285.5804 256.15816 374.10946 327.42649 334.47028" /> <polygon id="polygon4" fill="#4a7fc4" points="329.32111 430.70878 329.32111 335.56417 258.07371 383.13647" /> <polygon id="polygon6" fill="#002347" points="154.63524 335.56417 154.63524 430.70878 225.88271 383.13647" /> <polygon id="polygon8" fill="#0047ab" points="227.7982 374.10946 241.20966 285.5804 156.52986 334.47028" /> <polygon id="polygon10" fill="#0047ab" points="227.7982 392.16349 155.13954 432.57591 241.4713 482.4196" /> <polygon id="polygon12" fill="#1a4b8c" points="256.15816 392.16349 242.48506 482.4196 328.81682 432.57591" /> <g style="fill:#002347" id="g24"> <path id="path14" d="m 441.8149,347.11795 -8.78946,10.01303 c -4.78384,-5.34015 -11.68195,-9.34577 -20.36045,-9.34577 -16.4658,0 -27.48048,12.34973 -27.48048,29.59476 0,17.02261 11.01469,29.48329 27.48048,29.48329 9.01238,0 16.02146,-4.11658 20.8053,-9.79061 l 8.6785,10.23596 c -7.78831,8.56704 -17.69038,12.34973 -29.4838,12.34973 -24.2541,0 -41.6106,-18.13522 -41.6106,-42.27837 0,-24.36557 17.35649,-42.38933 41.6106,-42.38933 12.46119,0 21.47307,4.22753 29.14991,12.1273 z" /> <path id="path16" d="m 542.05568,377.37998 c 0,24.47703 -17.80134,42.27837 -41.6111,42.27837 -23.92022,0 -41.6106,-17.80134 -41.6106,-42.27837 0,-24.36557 17.69038,-42.38933 41.6106,-42.38933 23.80976,0 41.6111,18.02376 41.6111,42.38933 z m -69.09159,0 c 0,17.24503 11.34807,29.48329 27.48048,29.48329 16.02146,0 27.48099,-12.23826 27.48099,-29.48329 0,-17.24503 -11.45953,-29.59476 -27.48099,-29.59476 -16.13242,0 -27.48048,12.34973 -27.48048,29.59476 z" /> <path id="path18" d="m 623.38149,358.2436 c 0,8.56704 -4.56142,14.01865 -8.90042,16.4663 8.78946,2.67007 15.57611,8.45557 15.57611,20.13753 0,14.90884 -11.571,23.36441 -26.92468,23.36441 h -35.60268 v -81.77469 h 30.15106 c 16.4663,0 25.7006,8.34411 25.7006,21.80645 z m -42.05544,-9.12334 v 21.58403 h 15.35369 c 7.89926,0 12.68361,-4.44996 12.68361,-10.79176 0,-6.78665 -4.67288,-10.79227 -13.46234,-10.79227 z m 0,33.26648 v 23.14149 h 20.13753 c 8.90092,0 14.57496,-4.00511 14.57496,-11.57049 0,-7.45442 -5.34015,-11.571 -15.46464,-11.571 h -19.24784 z" /> <path id="path20" d="m 761.5581,405.86212 h 37.04867 v 12.34973 h -50.95636 v -81.77469 h 13.90769 v 69.42497 z" /> <path id="path22" d="m 869.36476,348.78688 h -27.70291 v 69.42497 h -13.90769 v -69.42497 h -27.70291 v -12.34973 h 69.3135 v 12.34973 z" /> </g> <polygon id="polygon26" fill="#002347" points="686.35066 334.99065 685.90582 334.99065 647.41014 418.21184 662.54141 418.21184 686.12824 363.58375 709.71508 418.21184 724.84584 418.21184" /> <polygon id="polygon28" fill="#0047ab" points="675.65591 418.21184 686.12824 393.95749 696.60057 418.21184" /> <g style="fill:#1a4b8c" id="g62"> <path id="path30" d="m 382.62256,442.73596 c 0.86963,-0.86963 1.89795,-1.54346 3.0874,-2.02197 1.18799,-0.47803 2.49268,-0.71729 3.91309,-0.71729 1.50684,0 2.90576,0.3042 4.19629,0.91309 1.28955,0.60889 2.44189,1.50781 3.45654,2.6958 l 4.56592,-4.17432 c -1.4502,-1.76758 -3.24707,-3.10889 -5.39209,-4.02197 -2.14551,-0.91309 -4.53711,-1.36963 -7.17432,-1.36963 -2.34814,0 -4.52979,0.38477 -6.54443,1.15234 -2.01514,0.76855 -3.76855,1.86279 -5.26123,3.28271 -1.49316,1.4209 -2.65234,3.0874 -3.47852,5.00049 -0.82617,1.91357 -1.23926,4.01562 -1.23926,6.30518 0,2.29004 0.41309,4.3916 1.23926,6.30469 0.82617,1.91357 1.97852,3.58057 3.45703,5.00049 1.47803,1.4209 3.22412,2.51514 5.23926,3.2832 2.01465,0.76758 4.19629,1.15234 6.54443,1.15234 2.6665,0 5.07227,-0.46436 7.21777,-1.3916 2.14502,-0.92725 3.94189,-2.27539 5.39209,-4.04395 l -4.56592,-4.17432 c -1.01465,1.18896 -2.16699,2.09473 -3.45654,2.71777 -1.29053,0.62354 -2.68945,0.93506 -4.19629,0.93506 -1.42041,0 -2.7251,-0.23926 -3.91309,-0.71777 -1.18945,-0.47803 -2.21777,-1.15234 -3.0874,-2.02197 -0.86963,-0.86963 -1.54395,-1.89795 -2.02197,-3.08691 -0.47852,-1.18848 -0.71729,-2.50732 -0.71729,-3.95703 0,-1.44922 0.23877,-2.76807 0.71729,-3.95703 0.47803,-1.18848 1.15234,-2.21777 2.02197,-3.0874 z" /> <path id="path32" d="m 431.45312,438.47473 c -1.50732,-1.41992 -3.26855,-2.51416 -5.2832,-3.28271 -2.01514,-0.76758 -4.2251,-1.15234 -6.63086,-1.15234 -2.40674,0 -4.6167,0.39111 -6.63086,1.17383 -2.01562,0.78271 -3.77637,1.88477 -5.2832,3.30469 -1.50781,1.4209 -2.67432,3.08057 -3.50049,4.979 -0.82617,1.89893 -1.23926,3.99365 -1.23926,6.2832 0,2.26123 0.41309,4.34814 1.23926,6.26123 0.82617,1.91357 1.99268,3.58057 3.50049,5.00049 1.50684,1.4209 3.27539,2.52197 5.30469,3.30469 2.02881,0.78271 4.24658,1.17432 6.65283,1.17432 2.37646,0 4.57227,-0.38477 6.5874,-1.15234 2.01465,-0.76807 3.77588,-1.8623 5.2832,-3.2832 1.50684,-1.41992 2.67432,-3.09375 3.50049,-5.02197 0.82617,-1.92773 1.23926,-4.02197 1.23926,-6.2832 0,-2.28955 -0.41309,-4.3916 -1.23926,-6.30518 -0.82617,-1.91309 -1.99365,-3.57959 -3.50049,-5.00049 z m -3.10888,15.24072 c -0.47852,1.17383 -1.15234,2.20312 -2.02197,3.0874 -0.86963,0.88428 -1.87744,1.56543 -3.02197,2.04346 -1.14551,0.47852 -2.39893,0.71777 -3.76123,0.71777 -1.36279,0 -2.62402,-0.23926 -3.7832,-0.71777 -1.15967,-0.47803 -2.16699,-1.15918 -3.02197,-2.04346 -0.85547,-0.88428 -1.52197,-1.91357 -2,-3.0874 -0.47852,-1.17383 -0.71729,-2.48535 -0.71729,-3.93506 0,-1.44922 0.23877,-2.76123 0.71729,-3.93506 0.47803,-1.17432 1.14453,-2.20264 2,-3.0874 0.85498,-0.88379 1.8623,-1.56543 3.02197,-2.04395 1.15918,-0.47803 2.42041,-0.71729 3.7832,-0.71729 1.3623,0 2.61572,0.23926 3.76123,0.71729 1.14453,0.47852 2.15234,1.16016 3.02197,2.04395 0.86963,0.88477 1.54346,1.91309 2.02197,3.0874 0.47852,1.17383 0.71729,2.48584 0.71729,3.93506 0,1.44971 -0.23877,2.76123 -0.71729,3.93506 z" /> <path id="polygon34" d="m 441.49756,434.56165 v 30.4375 h 6.56592 v -17.95252 l 8.95752,14.69129 h 3.13086 l 8.96624,-14.89313 0.0777,18.15436 h 6.56592 v -30.4375 h -5.87012 l -11.16882,18.89502 -11.39856,-18.89502 z" style="" /> <path id="polygon36" d="m 483.02295,434.56165 v 30.4375 h 6.56592 v -17.95252 l 8.95752,14.69129 h 3.13086 l 8.96624,-14.89313 0.0777,18.15436 h 6.56592 v -30.4375 h -5.87012 l -11.16882,18.89502 -11.39856,-18.89502 z" style="" /> <path id="polygon38" d="M 545.68164,446.77991 H 531.5498 v -6.56592 h 16.00147 v -5.65234 h -23.00244 v 30.4375 h 23.56738 v -5.65284 H 531.5498 v -7.04394 h 14.13184 z" style="" /> <path id="path40" d="m 573.94482,455.19397 c 1.97119,-0.85498 3.49316,-2.10156 4.56592,-3.73975 1.07227,-1.63721 1.60889,-3.60156 1.60889,-5.8916 0,-3.42041 -1.17432,-6.10938 -3.52197,-8.06592 -2.34814,-1.95703 -5.63867,-2.93506 -9.87061,-2.93506 h -13.00146 v 30.4375 h 7.08789 v -8.52246 h 6.0874 c 0.10492,0 0.20007,-0.0111 0.30389,-0.0123 l 5.91388,8.53479 h 7.56641 l -6.78369,-9.78943 c 0.0138,-0.006 0.0297,-0.01 0.0435,-0.0157 z m -2.56543,-13.52295 c 1.10156,0.91309 1.65234,2.21045 1.65234,3.8916 0,1.68164 -0.55078,2.98584 -1.65234,3.91309 -1.10205,0.92822 -2.7251,1.3916 -4.86963,1.3916 h -5.69629 V 440.3009 h 5.69629 c 2.14453,0 3.76758,0.45703 4.86963,1.37012 z" /> <path id="path42" d="m 593.64258,442.73596 c 0.86963,-0.86963 1.89795,-1.54346 3.0874,-2.02197 1.18799,-0.47803 2.49268,-0.71729 3.91309,-0.71729 1.50684,0 2.90576,0.3042 4.19629,0.91309 1.28955,0.60889 2.44189,1.50781 3.45654,2.6958 l 4.56592,-4.17432 c -1.4502,-1.76758 -3.24707,-3.10889 -5.39209,-4.02197 -2.14551,-0.91309 -4.53711,-1.36963 -7.17432,-1.36963 -2.34814,0 -4.52979,0.38477 -6.54443,1.15234 -2.01514,0.76855 -3.76855,1.86279 -5.26123,3.28271 -1.49316,1.4209 -2.65234,3.0874 -3.47852,5.00049 -0.82617,1.91357 -1.23926,4.01562 -1.23926,6.30518 0,2.29004 0.41309,4.3916 1.23926,6.30469 0.82617,1.91357 1.97852,3.58057 3.45703,5.00049 1.47803,1.4209 3.22412,2.51514 5.23926,3.2832 2.01465,0.76758 4.19629,1.15234 6.54443,1.15234 2.6665,0 5.07227,-0.46436 7.21777,-1.3916 2.14502,-0.92725 3.94189,-2.27539 5.39209,-4.04395 l -4.56592,-4.17432 c -1.01465,1.18896 -2.16699,2.09473 -3.45654,2.71777 -1.29053,0.62354 -2.68945,0.93506 -4.19629,0.93506 -1.42041,0 -2.7251,-0.23926 -3.91309,-0.71777 -1.18945,-0.47803 -2.21777,-1.15234 -3.0874,-2.02197 -0.86963,-0.86963 -1.54395,-1.89795 -2.02197,-3.08691 -0.47852,-1.18848 -0.71729,-2.50732 -0.71729,-3.95703 0,-1.44922 0.23877,-2.76807 0.71729,-3.95703 0.47803,-1.18848 1.15234,-2.21777 2.02197,-3.0874 z" /> <path id="rect44" d="m 617.1665,434.56165 h 7.08789 v 30.4375 h -7.08789 z" style="" /> <path id="path46" d="m 640.95166,434.56165 -13.52295,30.4375 h 7.21777 l 2.71252,-6.52246 h 14.09851 l 2.7124,6.52246 h 7.39209 l -13.65332,-30.4375 h -6.95703 z m -1.36853,18.56689 4.82526,-11.60291 4.82513,11.60291 z" /> <path id="polygon48" d="m 664.73633,464.99915 h 22.26318 v -5.73975 h -15.17529 v -24.69775 h -7.08789 z" style="" /> <path id="path50" d="m 711.2627,442.73596 c 0.86963,-0.86963 1.89795,-1.54346 3.0874,-2.02197 1.18799,-0.47803 2.49268,-0.71729 3.91309,-0.71729 1.50684,0 2.90576,0.3042 4.19629,0.91309 1.28955,0.60889 2.44189,1.50781 3.45654,2.6958 l 4.56592,-4.17432 c -1.4502,-1.76758 -3.24707,-3.10889 -5.39209,-4.02197 -2.14551,-0.91309 -4.53711,-1.36963 -7.17432,-1.36963 -2.34814,0 -4.52979,0.38477 -6.54443,1.15234 -2.01514,0.76855 -3.76855,1.86279 -5.26123,3.28271 -1.49316,1.4209 -2.65234,3.0874 -3.47852,5.00049 -0.82617,1.91357 -1.23926,4.01562 -1.23926,6.30518 0,2.29004 0.41309,4.3916 1.23926,6.30469 0.82617,1.91357 1.97852,3.58057 3.45703,5.00049 1.47803,1.4209 3.22412,2.51514 5.23926,3.2832 2.01465,0.76758 4.19629,1.15234 6.54443,1.15234 2.6665,0 5.07227,-0.46436 7.21777,-1.3916 2.14502,-0.92725 3.94189,-2.27539 5.39209,-4.04395 l -4.56592,-4.17432 c -1.01465,1.18896 -2.16699,2.09473 -3.45654,2.71777 -1.29053,0.62354 -2.68945,0.93506 -4.19629,0.93506 -1.42041,0 -2.7251,-0.23926 -3.91309,-0.71777 -1.18945,-0.47803 -2.21777,-1.15234 -3.0874,-2.02197 -0.86963,-0.86963 -1.54395,-1.89795 -2.02197,-3.08691 -0.47852,-1.18848 -0.71729,-2.50732 -0.71729,-3.95703 0,-1.44922 0.23877,-2.76807 0.71729,-3.95703 0.47803,-1.18848 1.15234,-2.21777 2.02197,-3.0874 z" /> <path id="path52" d="m 755.00537,455.19397 c 1.97119,-0.85498 3.49316,-2.10156 4.56592,-3.73975 1.07227,-1.63721 1.60889,-3.60156 1.60889,-5.8916 0,-3.42041 -1.17432,-6.10938 -3.52197,-8.06592 -2.34814,-1.95703 -5.63867,-2.93506 -9.87061,-2.93506 h -13.00146 v 30.4375 h 7.08789 v -8.52246 h 6.0874 c 0.10492,0 0.20007,-0.0111 0.30389,-0.0123 l 5.91388,8.53479 h 7.56641 l -6.78369,-9.78943 c 0.0139,-0.006 0.0297,-0.01 0.0435,-0.0157 z m -2.56543,-13.52295 c 1.10156,0.91309 1.65234,2.21045 1.65234,3.8916 0,1.68164 -0.55078,2.98584 -1.65234,3.91309 -1.10205,0.92822 -2.7251,1.3916 -4.86963,1.3916 h -5.69629 V 440.3009 h 5.69629 c 2.14453,0 3.76758,0.45703 4.86963,1.37012 z" /> <path id="polygon54" d="m 787.87842,446.77991 h -14.13184 v -6.56592 h 16.00147 v -5.65234 h -23.00244 v 30.4375 h 23.56738 v -5.65284 h -16.56641 v -7.04394 h 14.13184 z" style="" /> <path id="path56" d="m 818.48975,436.45276 c -2.52197,-1.26074 -5.43506,-1.89111 -8.73975,-1.89111 h -13.82764 v 30.4375 H 809.75 c 3.30469,0 6.21777,-0.63037 8.73975,-1.8916 2.52197,-1.26074 4.49316,-3.02881 5.91357,-5.30469 1.41992,-2.27539 2.13086,-4.94971 2.13086,-8.02246 0,-3.07227 -0.71094,-5.74658 -2.13086,-8.02246 -1.42041,-2.27539 -3.3916,-4.04395 -5.91357,-5.30518 z m -0.32618,18.34961 c -0.82617,1.43506 -1.98584,2.53711 -3.47852,3.30469 -1.49316,0.76855 -3.25439,1.15234 -5.2832,1.15234 h -6.3916 v -18.9585 h 6.3916 c 2.02881,0 3.79004,0.38477 5.2832,1.15234 1.49268,0.76855 2.65234,1.86328 3.47852,3.2832 0.82617,1.42041 1.23926,3.10205 1.23926,5.04395 0,1.91309 -0.41309,3.5874 -1.23926,5.02197 z" /> <path id="rect58" d="m 831.83887,434.56165 h 7.08789 v 30.4375 h -7.08789 z" style="" /> <path id="polygon60" d="m 852.40625,440.3009 v 24.69825 h 7.04395 V 440.3009 h 9.74023 v -5.73925 h -26.52441 v 5.73925 z" style="" /> </g>' + '</svg>';
+
+  function branchDetailHtml(){
+    if(state.dealType==='ground_up'){
+      var gates = GU_GATES.map(function(g){ var ok = $(g.key).checked; return (ok?'✓ ':'○ ')+g.label; }).join(' &nbsp;&nbsp; ');
+      return '<div class="pl-section"><h2>Ground-Up: Sources &amp; Uses</h2><div class="pl-grid">'+
+        pl('Land Cost', fmtMoney(num($('guLand').value))) + pl('Hard Costs', fmtMoney(num($('guHard').value))) + pl('Soft Costs', fmtMoney(num($('guSoft').value))) +
+        pl('FF&E', fmtMoney(num($('guFfe').value))) + pl('Contingency', fmtMoney(num($('guContingency').value))) + pl('Interest Reserve', fmtMoney(num($('guInterestReserve').value))) +
+        pl('Opdef Reserve', fmtMoney(num($('guOpdefReserve').value))) + pl('Start / Completion / Stabilization', ($('guStart').value||'—')+' / '+($('guCompletion').value||'—')+' / '+($('guStabilization').value||'—')) + pl('','') +
+        '</div><div class="pl-notes" style="margin-top:6px;">Readiness gates: '+gates+'</div></div>';
+    }
+    if(state.dealType==='acquisition'){
+      return '<div class="pl-section"><h2>Acquisition Details</h2><div class="pl-grid">'+
+        pl('Purchase Price', fmtMoney(num($('acqPurchasePrice').value))) + pl('Appraised Value', fmtMoney(num($('acqAppraisedValue').value))) + pl('PIP Budget', fmtMoney(num($('acqPipBudget').value))) +
+        pl('In-Place NOI', fmtMoney(num($('acqInPlaceNoi').value))) + pl('Pro Forma NOI', fmtMoney(num($('acqProFormaNoi').value))) + pl('','') +
+        '</div></div>';
+    }
+    if(state.dealType==='refi'){
+      return '<div class="pl-section"><h2>Refinance Details</h2><div class="pl-grid">'+
+        pl('Current / Appraised Value', fmtMoney(num($('refiCurrentValue').value))) + pl('Existing Balance', fmtMoney(num($('refiExistingBalance').value))) + pl('Existing Rate', $('refiExistingRate').value?$('refiExistingRate').value+'%':'—') +
+        pl('Existing Maturity', $('refiExistingMaturity').value||'—') + pl('Current NOI', fmtMoney(num($('refiCurrentNoi').value))) + pl('Cash-Out Amount', fmtMoney(num($('refiCashOut').value))) +
+        '</div><div class="pl-notes" style="margin-top:6px;"><b style="text-transform:uppercase;font-size:9.5px;color:#64748b;">Reason for Refi</b><br>'+esc($('refiReason').value||'—')+'</div></div>';
+    }
+    return '';
+  }
+
+  function renderPreLook(){
+    var ev = computeEval();
+    var typeLabel = {ground_up:'Ground-Up Construction', acquisition:'Acquisition', refi:'Refinance'}[state.dealType];
+    var metricsHtml = '';
+    if(state.dealType==='ground_up'){
+      metricsHtml = pl('LTC', fmtPct(ev.ltc)) + pl('Total Project Cost', fmtMoney(ev.totalProjectCost)) + pl('Binding Constraint', ev.binding||'—');
+    } else {
+      metricsHtml = pl('LTV', fmtPct(ev.ltv)) + pl('DSCR', ev.dscr!=null?ev.dscr.toFixed(2)+'x':'—') + pl('Debt Yield', fmtPct(ev.dy)) + pl('Binding Constraint', ev.binding||'—');
+    }
+    var html = ''+
+      '<div class="sheet-header"><div class="mark">'+FULL_LOGO_SVG+'</div><div class="co"><strong>'+esc($('companyName').value||'Untitled Deal')+'</strong>'+
+      typeLabel+' &middot; Prepared '+new Date().toLocaleDateString()+'</div></div>'+
+
+      '<div class="pl-section"><h2>Property &amp; Sponsor</h2><div class="pl-grid">'+
+      pl('Property Address', $('propertyAddress').value||'—') + pl('Property Type', $('propertyType').value||'—') + pl('Sponsor Entity', $('sponsorEntity').value||'—') +
+      pl('Contact', $('contactName').value||'—') + pl('Phone', $('phone').value||'—') + pl('Email', $('email').value||'—') +
+      '</div></div>'+
+
+      '<div class="pl-section"><h2>Sponsor Experience &amp; Guarantor</h2><div class="pl-grid">'+
+      pl('Years Experience', $('sponsorYears').value||'—') + pl('Similar Projects', $('sponsorSimilarCount').value||'—') + pl('Credit Band', $('guarantorCreditBand').value||'—') +
+      pl('Guarantor Net Worth', fmtMoney(num($('guarantorNetWorth').value))) + pl('Guarantor Liquidity', fmtMoney(num($('guarantorLiquidity').value))) + pl('', '') +
+      '</div></div>'+
+
+      '<div class="pl-section"><h2>Requested Terms</h2><div class="pl-grid">'+
+      pl('Requested Amount', fmtMoney(num($('requestedAmount').value))) + pl('Term (months)', $('requestedTerm').value||'—') + pl('Proposed Rate', $('proposedRate').value?$('proposedRate').value+'%':'—') +
+      pl('Amortization (yrs)', $('amortYears').value||'—') + pl('SBA Eligible', ev.sbaEligible==null?'Unconfirmed':(ev.sbaEligible?'Likely':'No')) + pl('', '') +
+      '</div></div>'+
+
+      branchDetailHtml()+
+
+      '<div class="pl-section"><h2>Evaluation</h2><div class="pl-grid">'+metricsHtml+'</div></div>'+
+
+      (ev.gaps.length ? '<div class="pl-section"><h2>Outstanding Items</h2><div class="pl-notes">'+esc(ev.gaps.join('; '))+'</div></div>' : '')+
+
+      '<div class="pl-section"><h2>Loan Purpose</h2><div class="pl-notes">'+esc($('loanPurpose').value||'—')+'</div></div>'+
+
+      ($('dealCommentary').value ? '<div class="pl-section"><h2>Deal Commentary</h2><div class="pl-notes">'+esc($('dealCommentary').value)+'</div></div>' : '');
+
+    $('preLookPrint').innerHTML = html;
+  }
+  function pl(label,val){ return '<div><b>'+esc(label)+'</b>'+esc(val)+'</div>'; }
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  // ---------- wiring ----------
+  function updateAuthUI(loggedIn){
+    $('authGate').style.display = loggedIn ? 'none' : 'flex';
+    $('mainApp').style.display = loggedIn ? 'block' : 'none';
+  }
+  $('authSubmit').addEventListener('click', async function(){
+    try{
+      var data = await authSignIn($('authEmail').value, $('authPassword').value);
+      saveSession(data);
+      updateAuthUI(true);
+      await enterApp();
+    }catch(e){ var el=$('authErr'); el.textContent=e.message; el.classList.add('show'); }
+  });
+  $('signOutBtn').addEventListener('click', function(){ clearSession(); updateAuthUI(false); });
+  $('toolSwitcher').addEventListener('change', function(){ if(this.value) location.href=this.value; });
+  $('newDealBtn').addEventListener('click', clearForm);
+  $('deleteDealBtn').addEventListener('click', deleteDeal);
+  $('saveDealBtn').addEventListener('click', saveDeal);
+  function showReport(){ renderPreLook(); $('reportWrap').className='visible'; $('inputWrap').style.display='none'; window.scrollTo(0,0); }
+  function hideReport(){ $('reportWrap').className=''; $('inputWrap').style.display='block'; }
+  $('exportPreLookBtn').addEventListener('click', showReport);
+  $('exportPreLookBtnBottom').addEventListener('click', showReport);
+  $('backToEditBtn').addEventListener('click', hideReport);
+  $('printReportBtn').addEventListener('click', function(){ window.print(); });
+  $('dealSelect').addEventListener('change', function(){ if(this.value) loadDeal(this.value); else clearForm(); });
+  document.querySelectorAll('.typepicker .opt').forEach(function(o){ o.addEventListener('click', function(){
+    if(state.currentId && o.dataset.type!==state.dealType){
+      var ok = confirm('This deal was saved as "'+state.dealType+'". Switching to "'+o.dataset.type+'" will clear the '+state.dealType+'-specific fields you\'ve entered (Sources & Uses, purchase details, etc. — whatever\'s specific to the old type). Shared fields stay. Continue?');
+      if(!ok) return;
+    }
+    setDealType(o.dataset.type);
+  }); });
+  document.querySelectorAll('#mainApp input, #mainApp select, #mainApp textarea').forEach(function(el){
+    if(el.id!=='dealSelect') el.addEventListener('input', renderEval);
+  });
+
+  function applyUrlPrefill(){
+    var params = new URLSearchParams(window.location.search);
+    var prospectId = params.get('prospect_id');
+    var name = params.get('name');
+    if(!prospectId) return;
+    state.linkedProspectId = prospectId;
+    state.linkedProspectName = name || '';
+    if(name){
+      if(!$('companyName').value) $('companyName').value = name;
+      if(!$('sponsorEntity').value) $('sponsorEntity').value = name;
+    }
+    var fillIfEmpty = { address:'propertyAddress', phone:'phone', email:'email', contactName:'contactName' };
+    Object.keys(fillIfEmpty).forEach(function(param){
+      var val = params.get(param);
+      var el = $(fillIfEmpty[param]);
+      if(val!=null && el && !el.value) el.value = val;
+    });
+    if(params.get('propertyValue') && !$('requestedAmount').value){
+      // informational only — leave requestedAmount to the user's own judgment on leverage
+    }
+    renderPipelineLinkStatus();
+  }
+
+  async function enterApp(){
+    $('ltvMaxPct').value = 75; $('dscrMin').value = 1.25; $('dyMinPct').value = 9;
+    setDealType('ground_up');
+    applyUrlPrefill();
+    await refreshDealList();
+    var loadId = new URLSearchParams(window.location.search).get('load_deal_id');
+    if(loadId){ await loadDeal(loadId); $('dealSelect').value = loadId; }
+  }
+
+  (async function init(){
+    loadStoredSession();
+    var ok = await ensureValidSession();
+    updateAuthUI(ok);
+    if(ok) await enterApp();
+  })();
+})();
+</script>
+</body>
+</html>
