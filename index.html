@@ -421,6 +421,16 @@
     return await res.json();
   }
   // Finds the company by name or the person by email/phone; creates whatever is missing. Returns ids.
+  // Every deal gets a CRM home: create or link its company and contact, then store the link on the deal.
+  async function linkDealToCrm(rec){
+    if(rec.crmCompanyId) return { companyId: rec.crmCompanyId, created: false };
+    var src = { 'Outbound':'Outbound', 'COI':'COI', 'Bank Referral Partner':'Bank' }[rec.referralSource] || '';
+    var st = rec.stage==='Funded' ? 'Client' : (rec.stage==='Dead' ? 'Nurture' : 'Qualified');
+    var r = await crmEnsure({ name:rec.companyName, contactName:rec.contactName, phone:rec.phone, email:rec.email, industry:rec.industry, owner:rec.assignedTo, source:src, status:st, note:'Deal added in Pipeline ('+(rec.source||'credit')+')' });
+    await patchDealRemote(rec.id, { crm_company_id:r.companyId, crm_contact_id:r.contactId }, rec.source);
+    rec.crmCompanyId = r.companyId; rec.crmContactId = r.contactId;
+    return r;
+  }
   async function crmEnsure(o){
     var by = (state.session && state.session.email) || 'Unknown';
     var key = crmNorm(o.name), email = (o.email||'').trim().toLowerCase(), phone = (o.phone||'').replace(/\D/g,'').slice(-10);
@@ -876,8 +886,10 @@
     state.deals.push(rec);
     $('addOverlay').style.display = 'none';
     renderAll();
-    try{ await upsertDealsRemote([rec]); toast(isSlb ? 'SLB deal added' : 'Deal added'); }
-    catch(e){ toast('Added locally, but syncing failed — check your connection'); }
+    try{ await upsertDealsRemote([rec]); }
+    catch(e){ toast('Added locally, but syncing failed — check your connection'); return; }
+    try{ var cr = await linkDealToCrm(rec); toast((isSlb ? 'SLB deal added' : 'Deal added')+(cr.created ? ' and created in the CRM' : ' and linked to its CRM record')); renderAll(); }
+    catch(e){ toast((isSlb ? 'SLB deal added' : 'Deal added')+'. CRM link failed: '+e.message+'. Use Add to CRM in its details.'); }
   });
 
   // ---------- CSV upload ----------
@@ -969,12 +981,18 @@
       }
     });
 
+    var synced = true;
     try{ await upsertDealsRemote(touched); }
-    catch(e){ toast('Saved locally, but syncing to the database failed — check your connection'); }
+    catch(e){ synced = false; toast('Saved locally, but syncing to the database failed — check your connection'); }
     $('csvOverlay').style.display = 'none';
     pendingDealImport = null;
     renderAll();
     toast(added+' new, '+updated+' updated');
+    if(synced){
+      var linked = 0, failed = 0, todo = touched.filter(function(r){ return !r.crmCompanyId && r.companyName; });
+      for(var i=0;i<todo.length;i++){ try{ await linkDealToCrm(todo[i]); linked++; }catch(e){ failed++; } }
+      if(todo.length){ renderAll(); toast(added+' new, '+updated+' updated · '+linked+' linked in the CRM'+(failed?' · '+failed+' failed, use Add to CRM':'')); }
+    }
   });
 
   // ---------- backups ----------
@@ -1375,14 +1393,8 @@
       var addCrmBtn = tr.querySelector('[data-act="addcrm"]');
       if(addCrmBtn) addCrmBtn.addEventListener('click', async function(){
         addCrmBtn.disabled = true;
-        try{
-          var src = { 'Outbound':'Outbound', 'COI':'COI', 'Bank Referral Partner':'Bank' }[rec.referralSource] || '';
-          var st = rec.stage==='Funded' ? 'Client' : (rec.stage==='Dead' ? 'Nurture' : 'Qualified');
-          var r = await crmEnsure({ name:rec.companyName, contactName:rec.contactName, phone:rec.phone, email:rec.email, industry:rec.industry, owner:rec.assignedTo, source:src, status:st, note:'Linked from Pipeline deal ('+(rec.source||'credit')+')' });
-          await patchDealRemote(rec.id, { crm_company_id:r.companyId, crm_contact_id:r.contactId }, rec.source);
-          rec.crmCompanyId = r.companyId; rec.crmContactId = r.contactId;
-          toast(r.created ? 'Added to CRM' : 'Linked to the existing CRM record'); renderTable();
-        }catch(e){ addCrmBtn.disabled = false; toast('CRM link failed: '+e.message); }
+        try{ var r = await linkDealToCrm(rec); toast(r.created ? 'Added to CRM' : 'Linked to the existing CRM record'); renderTable(); }
+        catch(e){ addCrmBtn.disabled = false; toast('CRM link failed: '+e.message); }
       });
       var openCreBtn = tr.querySelector('[data-act="opencre"]');
       if(openCreBtn) openCreBtn.addEventListener('click', function(){
