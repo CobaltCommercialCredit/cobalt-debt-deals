@@ -131,6 +131,8 @@
   .map-row label span{ display:block; font-weight:400; color:var(--ink-faint); font-size:11px; margin-top:1px; }
   .map-row select, .map-row input[type=text]{ padding:7px 9px; border:1px solid var(--line); border-radius:7px; font-size:12.5px; font-family:inherit; width:100%; }
   .field-block{ margin-bottom:14px; }
+  .intro-grid{ display:grid; grid-template-columns:1fr 1fr; gap:0 12px; } @media (max-width:700px){ .intro-grid{ grid-template-columns:1fr; } }
+  .field-block textarea{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-family:inherit; min-height:60px; }
   .field-block label{ display:block; font-size:12.5px; font-weight:600; margin-bottom:5px; }
   .field-block input, .field-block select{ width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:7px; font-size:13px; font-family:inherit; }
 
@@ -245,14 +247,16 @@
     <div class="filterbar">
       <span id="introsTotals" style="font-size:13px;color:var(--ink-soft)"></span>
       <div class="spacer"></div>
-      <a class="btn" id="introsCrmLink" target="_blank" rel="noopener">Manage in CRM</a>
+      <a class="btn" id="introsCrmLink" target="_blank" rel="noopener">Open in CRM</a>
+      <button class="btn btn-primary" id="addIntroBtn">+ Introduction</button>
     </div>
     <div class="tablewrap" id="introsWrap"></div>
-    <p style="font-size:12px;color:var(--ink-faint);margin-top:8px">Search fees from PE firms and buyers for introductions (control deals). Kept separate from loan totals above, since one company sale would swamp the credit pipeline. Add and update introductions in the CRM on the PE &amp; Buyers tab.</p>
+    <p style="font-size:12px;color:var(--ink-faint);margin-top:8px">Search fees from PE firms and buyers for introductions (control deals). Kept separate from loan totals above, since one company sale would swamp the credit pipeline. Add or change them here or in the CRM (PE &amp; Buyers tab); both show the same records.</p>
   </div>
 
 </div>
 
+<div class="overlay" id="introOverlay" style="display:none;"><div class="modal" id="introModal" style="max-width:620px"></div></div>
 <div class="overlay" id="addOverlay" style="display:none;">
   <div class="modal">
     <div class="modal-head">
@@ -1936,6 +1940,20 @@
   $('viewDealsBtn').addEventListener('click', function(){ switchView('deals'); });
   $('viewActionItemsBtn').addEventListener('click', function(){ switchView('actionitems'); });
   $('viewIntrosBtn').addEventListener('click', function(){ switchView('intros'); });
+  $('addIntroBtn').addEventListener('click', function(){ openIntroForm(null); });
+  $('introOverlay').addEventListener('click', function(e){ if(e.target.id==='introOverlay') closeIntro(); });
+  $('introsWrap').addEventListener('click', function(e){ var b=e.target.closest('[data-piedit]'); if(b) openIntroForm(b.getAttribute('data-piedit')); });
+  $('introsWrap').addEventListener('change', async function(e){
+    var sel=e.target.closest('[data-pistage]'); if(!sel) return;
+    var d=state.intros, i=d.list.filter(function(x){ return x.id===sel.getAttribute('data-pistage'); })[0]; if(!i) return;
+    var from=i.stage, f={ stage:sel.value };
+    if(INTRO_ORDER.indexOf(sel.value)>=INTRO_ORDER.indexOf('Closed') && sel.value!=='Dead' && !i.closed_on) f.closed_on=todayISO();
+    try{ await crmReq('PATCH','/crm_introductions?id=eq.'+encodeURIComponent(i.id), f);
+      await introLog(i.company_id, 'Introduction to '+(d.names[i.buyer_id]||'buyer')+': '+from+' → '+sel.value+' (Pipeline)');
+      await introLog(i.buyer_id, 'Introduction of '+(d.names[i.company_id]||'company')+': '+from+' → '+sel.value+' (Pipeline)');
+      state.intros=await fetchIntros(); renderIntros(); toast('Stage saved to Pipeline and CRM'); }
+    catch(err){ toast('Save failed: '+err.message); sel.value=from; }
+  });
   $('aiFilterOwner').addEventListener('change', renderActionItemsCrossDealView);
   $('aiFilterStatus').addEventListener('change', renderActionItemsCrossDealView);
 
@@ -1952,15 +1970,15 @@
     try{
       var r = await Promise.all([
         fetch(REST+'/crm_introductions?select=*&order=created_at.desc', { headers: sbHeaders() }),
-        fetch(REST+'/crm_companies?select=id,name', { headers: sbHeaders() }),
+        fetch(REST+'/crm_companies?select=id,name,kind,status,owner', { headers: sbHeaders() }),
         fetch(REST+'/crm_contacts?select=id,first_name,last_name,company_id', { headers: sbHeaders() })
       ]);
-      if(!r[0].ok) return { list:[], names:{}, people:{} };
+      if(!r[0].ok) return { list:[], names:{}, people:{}, cos:[], ppl:[] };
       var list = await r[0].json(), cos = r[1].ok ? await r[1].json() : [], ppl = r[2].ok ? await r[2].json() : [];
       var names = {}; cos.forEach(function(c){ names[c.id]=c.name; });
       var people = {}; ppl.forEach(function(c){ people[c.id]=((c.first_name||'')+' '+(c.last_name||'')).trim(); });
-      return { list:list, names:names, people:people };
-    }catch(e){ return { list:[], names:{}, people:{} }; }
+      return { list:list, names:names, people:people, cos:cos, ppl:ppl };
+    }catch(e){ return { list:[], names:{}, people:{}, cos:[], ppl:[] }; }
   }
   function introExpected(i){ return i.fee_type==='Flat' ? (Number(i.fee_flat)||0) : (Number(i.est_ev)||0)*(Number(i.fee_pct)||0)/100; }
   function introOpenP(i){ return i.stage!=='Fee paid' && i.stage!=='Dead'; }
@@ -1973,14 +1991,92 @@
     $('introsCrmLink').href = CRM_URL+'?view=buyers';
     $('introsNavBadge').textContent = open.length ? '('+open.length+')' : '';
     if(!list.length){ $('introsWrap').innerHTML = '<div class="empty"><div class="display">No introductions yet.</div><p>When you introduce a company to a PE firm or buyer, record it in the CRM on the PE &amp; Buyers tab and it shows up here.</p></div>'; return; }
-    $('introsWrap').innerHTML = '<table><thead><tr><th>Company</th><th>Buyer</th><th>Contact</th><th>Stage</th><th>Fee</th><th>Expected fee</th><th>Introduced</th><th>Owner</th></tr></thead><tbody>'+
+    $('introsWrap').innerHTML = '<table><thead><tr><th>Company</th><th>Buyer</th><th>Contact</th><th>Stage</th><th>Fee</th><th>Expected fee</th><th>Introduced</th><th>Owner</th><th></th></tr></thead><tbody>'+
       list.map(function(i){
         var fee = i.fee_type==='Flat' ? fmtMoney(i.fee_flat)+' flat' : ((i.fee_pct!=null?i.fee_pct+'%':'')+(i.est_ev?' of '+fmtMoney(i.est_ev):''));
         return '<tr'+(introOpenP(i)?'':' style="opacity:.55"')+'><td><a href="'+CRM_URL+'?company='+encodeURIComponent(i.company_id)+'" target="_blank" rel="noopener"><b>'+esc(d.names[i.company_id]||'(deleted)')+'</b></a></td>'+
           '<td><a href="'+CRM_URL+'?company='+encodeURIComponent(i.buyer_id)+'" target="_blank" rel="noopener">'+esc(d.names[i.buyer_id]||'(deleted)')+'</a></td>'+
-          '<td>'+esc(d.people[i.buyer_contact_id]||'')+'</td><td>'+esc(i.stage)+'</td><td>'+esc(fee)+'</td><td>'+esc(introExpected(i)?fmtMoney(introExpected(i)):'')+'</td>'+
-          '<td>'+esc(i.introduced_on||'')+'</td><td>'+esc(i.owner||'')+'</td></tr>';
+          '<td>'+esc(d.people[i.buyer_contact_id]||'')+'</td><td><select data-pistage="'+esc(i.id)+'" style="padding:5px 6px;border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12.5px">'+INTRO_ORDER.map(function(st){ return '<option'+(st===i.stage?' selected':'')+'>'+st+'</option>'; }).join('')+'</select></td><td>'+esc(fee)+'</td><td>'+esc(introExpected(i)?fmtMoney(introExpected(i)):'')+'</td>'+
+          '<td>'+esc(i.introduced_on||'')+'</td><td>'+esc(i.owner||'')+'</td><td><button class="btn" data-piedit="'+esc(i.id)+'" style="padding:5px 10px;font-size:12px">Edit</button></td></tr>';
       }).join('')+'</tbody></table>';
+  }
+  // Add and edit introductions here; they are the same records the CRM shows on its PE & Buyers tab.
+  function pMoney(v){ if(v==null) return null; var t=String(v).trim().toLowerCase().replace(/[$,\s]/g,''); if(!t) return null; var m=t.match(/^([\d.]+)([km]|mm|b)?$/); if(!m) return null; var n=parseFloat(m[1]); if(isNaN(n)) return null; return n*({k:1e3,m:1e6,mm:1e6,b:1e9}[m[2]]||1); }
+  function pMoneyShow(v){ if(v==null||v==='') return ''; var n=Number(v); if(n>=1e6) return '$'+(Math.round(n/1e5)/10)+'M'; if(n>=1e3) return '$'+Math.round(n/1e3)+'K'; return '$'+n; }
+  function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function selOpts(list, cur, ph){ return (ph?'<option value="">'+esc(ph)+'</option>':'')+list.map(function(o){ var v=typeof o==='string'?o:o.v, l=typeof o==='string'?o:o.l; return '<option value="'+esc(v)+'"'+(String(v)===String(cur||'')?' selected':'')+'>'+esc(l)+'</option>'; }).join(''); }
+  function introLog(companyId, text){ var by=(state.session&&state.session.email)||''; return crmReq('POST','/crm_activities',[{ id:crmUid('act'), company_id:companyId, type:'System', body:text, created_by:by, owner:'' }]).catch(function(){}); }
+  function closeIntro(){ $('introOverlay').style.display='none'; }
+  function openIntroForm(id){
+    var d=state.intros||{ list:[], cos:[], ppl:[] }, i=id?d.list.filter(function(x){ return x.id===id; })[0]:null;
+    var targets=d.cos.filter(function(c){ return (c.kind||'company')==='company' && c.status!=='Dead' && c.status!=='Do Not Contact'; }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+    var buyers=d.cos.filter(function(c){ return c.kind==='buyer'; }).sort(function(a,b){ return a.name.localeCompare(b.name); });
+    var meName=(function(){ var e=((state.session&&state.session.email)||'').split('@')[0]; var n=e.charAt(0).toUpperCase()+e.slice(1); return ASSIGNEES.indexOf(n)>=0?n:''; })();
+    var cur=i||{ stage:'Introduced', fee_type:'Percent', control:true, introduced_on:todayISO(), tail_months:24, owner:meName };
+    if(cur.company_id && !targets.some(function(c){ return c.id===cur.company_id; })){ var co0=d.cos.filter(function(c){ return c.id===cur.company_id; })[0]; if(co0) targets.unshift(co0); }
+    function people(bid){ return d.ppl.filter(function(p){ return p.company_id===bid; }).map(function(p){ return { v:p.id, l:((p.first_name||'')+' '+(p.last_name||'')).trim()||'(no name)' }; }); }
+    var fb=function(label, html, full){ return '<div class="field-block"'+(full?' style="grid-column:1/-1"':'')+'><label>'+label+'</label>'+html+'</div>'; };
+    $('introModal').innerHTML='<div class="modal-head"><h2 class="display">'+(i?'Introduction':'New introduction')+'</h2><p>One company introduced to one PE firm or buyer. Saved to the CRM too.</p></div><div class="modal-body"><div class="intro-grid">'+
+      fb('Company', '<select id="piCo">'+selOpts(targets.map(function(c){ return { v:c.id, l:c.name }; }), cur.company_id, 'Pick the company')+'<option value="__new">+ New company…</option></select><input type="text" id="piCoNew" placeholder="Company name" style="display:none;margin-top:6px">')+
+      fb('PE firm / buyer', '<select id="piBuyer">'+selOpts(buyers.map(function(c){ return { v:c.id, l:c.name }; }), cur.buyer_id, buyers.length?'Pick the buyer':'No PE firms yet')+'<option value="__new">+ New PE firm…</option></select>')+
+      '<div id="piNewFirm" style="display:none;grid-column:1/-1"><div class="intro-grid">'+fb('PE firm name','<input type="text" id="piFirmName" placeholder="XYZ Capital">')+fb('Person at the firm','<input type="text" id="piFirmPerson" placeholder="Paul Smith">')+fb('Their email','<input type="text" id="piFirmEmail" placeholder="paul@xyzcapital.com">')+fb('Their phone','<input type="text" id="piFirmPhone">')+'</div></div>'+
+      fb('Buyer contact', '<select id="piContact">'+selOpts(people(cur.buyer_id), cur.buyer_contact_id, 'Anyone at the firm')+'</select>')+
+      fb('Stage', '<select id="piStage">'+selOpts(INTRO_ORDER, cur.stage)+'</select>')+
+      fb('Fee', '<select id="piFeeType">'+selOpts([{ v:'Percent', l:'% of deal value' },{ v:'Flat', l:'Flat fee' }], cur.fee_type)+'</select>')+
+      '<div id="piPctWrap">'+fb('Fee %', '<input type="text" id="piPct" inputmode="decimal" placeholder="1.5" value="'+esc(cur.fee_pct==null?'':cur.fee_pct)+'">')+'</div>'+
+      '<div id="piFlatWrap">'+fb('Flat fee', '<input type="text" id="piFlat" placeholder="$250K" value="'+esc(pMoneyShow(cur.fee_flat))+'">')+'</div>'+
+      fb('Est. deal value', '<input type="text" id="piEv" placeholder="$30M" value="'+esc(pMoneyShow(cur.est_ev))+'">')+
+      fb('Introduced on', '<input type="date" id="piIntro" value="'+esc(cur.introduced_on||'')+'">')+
+      fb('Closed on', '<input type="date" id="piClosed" value="'+esc(cur.closed_on||'')+'">')+
+      fb('Fee received', '<input type="text" id="piActual" value="'+esc(pMoneyShow(cur.actual_fee))+'">')+
+      fb('Tail (months)', '<input type="text" id="piTail" inputmode="numeric" value="'+esc(cur.tail_months==null?'':cur.tail_months)+'">')+
+      fb('Owner', '<select id="piOwner">'+selOpts(ASSIGNEES.filter(Boolean), cur.owner, 'Owner')+'</select>')+
+      '</div><label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:12px"><input type="checkbox" id="piControl"'+(cur.control!==false?' checked':'')+' style="width:auto">Control deal: buyer takes 25% or more and runs the company</label>'+
+      fb('Notes', '<textarea id="piNotes" placeholder="Fee terms agreed, who you spoke with">'+esc(cur.notes||'')+'</textarea>', true)+
+      '<div id="piCalc" style="font-size:12.5px;color:var(--ink-soft)"></div></div>'+
+      '<div class="modal-foot">'+(i?'<button class="btn btn-danger" id="piDel">Delete</button>':'<span></span>')+'<div style="display:flex;gap:10px"><button class="btn" id="piCancel">Cancel</button><button class="btn btn-primary" id="piSave">Save</button></div></div>';
+    $('introOverlay').style.display='flex';
+    function sync(){
+      var flat=$('piFeeType').value==='Flat'; $('piPctWrap').style.display=flat?'none':''; $('piFlatWrap').style.display=flat?'':'none';
+      $('piCoNew').style.display=$('piCo').value==='__new'?'':'none';
+      $('piNewFirm').style.display=$('piBuyer').value==='__new'?'':'none';
+      $('piContact').parentNode.style.display=$('piBuyer').value==='__new'?'none':'';
+      var e=introExpected({ fee_type:$('piFeeType').value, fee_pct:parseFloat($('piPct').value), fee_flat:pMoney($('piFlat').value), est_ev:pMoney($('piEv').value) });
+      $('piCalc').textContent=e?'Expected fee: '+fmtMoney(e):'';
+    }
+    ['piFeeType','piPct','piFlat','piEv','piCo'].forEach(function(k){ $(k).addEventListener('input', sync); $(k).addEventListener('change', sync); });
+    $('piBuyer').addEventListener('change', function(){ if(this.value!=='__new') $('piContact').innerHTML=selOpts(people(this.value), '', 'Anyone at the firm'); sync(); });
+    $('piStage').addEventListener('change', function(){ var st=this.value; if(INTRO_ORDER.indexOf(st)>=INTRO_ORDER.indexOf('Closed') && st!=='Dead' && !$('piClosed').value) $('piClosed').value=todayISO(); });
+    $('piCancel').addEventListener('click', closeIntro);
+    sync();
+    if(i) $('piDel').addEventListener('click', async function(){ if(!confirm('Delete this introduction? It is your record of the introduction date.')) return;
+      try{ await crmReq('DELETE','/crm_introductions?id=eq.'+encodeURIComponent(i.id)); state.intros=await fetchIntros(); renderIntros(); closeIntro(); toast('Deleted'); }catch(e){ toast('Delete failed: '+e.message); } });
+    $('piSave').addEventListener('click', async function(){
+      var btn=this, coId=$('piCo').value, buyerId=$('piBuyer').value, contactId=$('piContact').value||null;
+      if(!coId || (coId==='__new' && !$('piCoNew').value.trim())){ toast('Pick or name the company'); return; }
+      if(!buyerId || (buyerId==='__new' && !$('piFirmName').value.trim())){ toast('Pick or name the PE firm'); return; }
+      var pct=$('piPct').value.trim(); if(pct && isNaN(parseFloat(pct))){ toast('Fee % should be a number, like 1.5'); return; }
+      btn.disabled=true;
+      try{
+        var owner=$('piOwner').value||'';
+        if(coId==='__new'){ var rc=await crmEnsure({ name:$('piCoNew').value.trim(), owner:owner, status:'Qualified', note:'Added from Pipeline for a PE introduction' }); coId=rc.companyId; }
+        if(buyerId==='__new'){
+          var rb=await crmEnsure({ name:$('piFirmName').value.trim(), contactName:$('piFirmPerson').value.trim(), email:$('piFirmEmail').value.trim(), phone:$('piFirmPhone').value.trim(), owner:owner, status:'Working', roles:['PE / Buyer'], note:'PE firm added from Pipeline' });
+          buyerId=rb.companyId; contactId=rb.contactId||null;
+          await crmReq('PATCH','/crm_companies?id=eq.'+encodeURIComponent(buyerId), { kind:'buyer' });
+        }
+        var rec={ company_id:coId, buyer_id:buyerId, buyer_contact_id:contactId, stage:$('piStage').value, fee_type:$('piFeeType').value,
+          fee_pct:pct===''?null:parseFloat(pct), fee_flat:pMoney($('piFlat').value), est_ev:pMoney($('piEv').value), actual_fee:pMoney($('piActual').value),
+          introduced_on:$('piIntro').value||null, closed_on:$('piClosed').value||null, tail_months:$('piTail').value===''?null:parseInt($('piTail').value,10),
+          owner:owner||null, notes:$('piNotes').value.trim()||null, control:$('piControl').checked };
+        var names=(state.intros&&state.intros.names)||{}, coName=names[coId]||$('piCoNew').value.trim()||'company', byName=names[buyerId]||$('piFirmName').value.trim()||'buyer';
+        if(i){ await crmReq('PATCH','/crm_introductions?id=eq.'+encodeURIComponent(i.id), rec);
+          if(i.stage!==rec.stage){ await introLog(coId, 'Introduction to '+byName+': '+i.stage+' → '+rec.stage+' (Pipeline)'); await introLog(buyerId, 'Introduction of '+coName+': '+i.stage+' → '+rec.stage+' (Pipeline)'); } }
+        else { rec.id=crmUid('intro'); rec.created_by=(state.session&&state.session.email)||null; await crmReq('POST','/crm_introductions',[rec]);
+          await introLog(coId, 'Introduction to '+byName+' recorded in Pipeline ('+rec.stage+')'); await introLog(buyerId, 'Introduction of '+coName+' recorded in Pipeline ('+rec.stage+')'); }
+        state.intros=await fetchIntros(); renderIntros(); closeIntro(); toast('Saved to Pipeline and CRM');
+      }catch(e){ btn.disabled=false; toast('Save failed: '+e.message); }
+    });
   }
   function renderAll(){ renderSummary(); renderTable(); if(state.intros) renderIntros(); }
 
