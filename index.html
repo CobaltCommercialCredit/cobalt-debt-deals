@@ -208,6 +208,7 @@
   <div class="view-switch" style="display:flex;gap:8px;margin-bottom:14px;">
     <button class="btn btn-primary" id="viewDealsBtn">Deals</button>
     <button class="btn btn-ghost" id="viewActionItemsBtn">Action Items <span id="actionItemsNavBadge"></span></button>
+    <button class="btn btn-ghost" id="viewIntrosBtn">PE Introductions <span id="introsNavBadge"></span></button>
   </div>
 
   <div id="dealsView">
@@ -238,6 +239,16 @@
       <span class="count-pill" id="aiCountPill"></span>
     </div>
     <div class="tablewrap" id="actionItemsWrap"></div>
+  </div>
+
+  <div id="introsView" style="display:none;">
+    <div class="filterbar">
+      <span id="introsTotals" style="font-size:13px;color:var(--ink-soft)"></span>
+      <div class="spacer"></div>
+      <a class="btn" id="introsCrmLink" target="_blank" rel="noopener">Manage in CRM</a>
+    </div>
+    <div class="tablewrap" id="introsWrap"></div>
+    <p style="font-size:12px;color:var(--ink-faint);margin-top:8px">Search fees from PE firms and buyers for introductions (control deals). Kept separate from loan totals above, since one company sale would swamp the credit pipeline. Add and update introductions in the CRM on the PE &amp; Buyers tab.</p>
   </div>
 
 </div>
@@ -847,8 +858,8 @@
   $('searchBox').addEventListener('input', function(){ state.filters.search=this.value.toLowerCase(); renderTable(); });
   $('refreshBtn').addEventListener('click', async function(){
     try{
-      var results = await Promise.all([fetchAllDeals(), fetchAllBanksForMatching(), fetchActionItems()]);
-      state.deals = results[0]; state.banks = results[1];
+      var results = await Promise.all([fetchAllDeals(), fetchAllBanksForMatching(), fetchActionItems(), fetchIntros()]);
+      state.deals = results[0]; state.banks = results[1]; state.intros = results[3];
       renderAll(); toast('Refreshed — showing latest from everyone');
     }
     catch(e){ toast('Could not refresh — check your connection'); }
@@ -1915,12 +1926,16 @@
     state.currentView = view;
     $('dealsView').style.display = view==='deals' ? '' : 'none';
     $('actionItemsView').style.display = view==='actionitems' ? '' : 'none';
+    $('introsView').style.display = view==='intros' ? '' : 'none';
+    $('viewIntrosBtn').className = view==='intros' ? 'btn btn-primary' : 'btn btn-ghost';
+    if(view==='intros') renderIntros();
     $('viewDealsBtn').className = view==='deals' ? 'btn btn-primary' : 'btn btn-ghost';
     $('viewActionItemsBtn').className = view==='actionitems' ? 'btn btn-primary' : 'btn btn-ghost';
     if(view==='actionitems') renderActionItemsCrossDealView();
   }
   $('viewDealsBtn').addEventListener('click', function(){ switchView('deals'); });
   $('viewActionItemsBtn').addEventListener('click', function(){ switchView('actionitems'); });
+  $('viewIntrosBtn').addEventListener('click', function(){ switchView('intros'); });
   $('aiFilterOwner').addEventListener('change', renderActionItemsCrossDealView);
   $('aiFilterStatus').addEventListener('change', renderActionItemsCrossDealView);
 
@@ -1931,13 +1946,49 @@
     if(el){ el.innerHTML = renderScenarioHistoryHtml(history); wireScenarioHistoryDeletes(el, rec.id); }
   }
 
-  function renderAll(){ renderSummary(); renderTable(); }
+  // ---------- PE introductions (read only here; managed in the CRM) ----------
+  var INTRO_ORDER = ['Introduced','In talks','LOI signed','Closed','Fee paid','Dead'];
+  async function fetchIntros(){
+    try{
+      var r = await Promise.all([
+        fetch(REST+'/crm_introductions?select=*&order=created_at.desc', { headers: sbHeaders() }),
+        fetch(REST+'/crm_companies?select=id,name', { headers: sbHeaders() }),
+        fetch(REST+'/crm_contacts?select=id,first_name,last_name,company_id', { headers: sbHeaders() })
+      ]);
+      if(!r[0].ok) return { list:[], names:{}, people:{} };
+      var list = await r[0].json(), cos = r[1].ok ? await r[1].json() : [], ppl = r[2].ok ? await r[2].json() : [];
+      var names = {}; cos.forEach(function(c){ names[c.id]=c.name; });
+      var people = {}; ppl.forEach(function(c){ people[c.id]=((c.first_name||'')+' '+(c.last_name||'')).trim(); });
+      return { list:list, names:names, people:people };
+    }catch(e){ return { list:[], names:{}, people:{} }; }
+  }
+  function introExpected(i){ return i.fee_type==='Flat' ? (Number(i.fee_flat)||0) : (Number(i.est_ev)||0)*(Number(i.fee_pct)||0)/100; }
+  function introOpenP(i){ return i.stage!=='Fee paid' && i.stage!=='Dead'; }
+  function renderIntros(){
+    var d = state.intros || { list:[], names:{}, people:{} }, list = d.list.slice();
+    list.sort(function(a,b){ var oa=introOpenP(a)?0:1, ob=introOpenP(b)?0:1; if(oa!==ob) return oa-ob; return INTRO_ORDER.indexOf(b.stage)-INTRO_ORDER.indexOf(a.stage); });
+    var open = list.filter(introOpenP), expected = open.reduce(function(s,i){ return s+introExpected(i); },0);
+    var paid = list.filter(function(i){ return i.stage==='Fee paid'; }).reduce(function(s,i){ return s+(Number(i.actual_fee)||introExpected(i)); },0);
+    $('introsTotals').textContent = open.length+' open · expected fees '+fmtMoney(expected)+(paid?' · paid to date '+fmtMoney(paid):'');
+    $('introsCrmLink').href = CRM_URL+'?view=buyers';
+    $('introsNavBadge').textContent = open.length ? '('+open.length+')' : '';
+    if(!list.length){ $('introsWrap').innerHTML = '<div class="empty"><div class="display">No introductions yet.</div><p>When you introduce a company to a PE firm or buyer, record it in the CRM on the PE &amp; Buyers tab and it shows up here.</p></div>'; return; }
+    $('introsWrap').innerHTML = '<table><thead><tr><th>Company</th><th>Buyer</th><th>Contact</th><th>Stage</th><th>Fee</th><th>Expected fee</th><th>Introduced</th><th>Owner</th></tr></thead><tbody>'+
+      list.map(function(i){
+        var fee = i.fee_type==='Flat' ? fmtMoney(i.fee_flat)+' flat' : ((i.fee_pct!=null?i.fee_pct+'%':'')+(i.est_ev?' of '+fmtMoney(i.est_ev):''));
+        return '<tr'+(introOpenP(i)?'':' style="opacity:.55"')+'><td><a href="'+CRM_URL+'?company='+encodeURIComponent(i.company_id)+'" target="_blank" rel="noopener"><b>'+esc(d.names[i.company_id]||'(deleted)')+'</b></a></td>'+
+          '<td><a href="'+CRM_URL+'?company='+encodeURIComponent(i.buyer_id)+'" target="_blank" rel="noopener">'+esc(d.names[i.buyer_id]||'(deleted)')+'</a></td>'+
+          '<td>'+esc(d.people[i.buyer_contact_id]||'')+'</td><td>'+esc(i.stage)+'</td><td>'+esc(fee)+'</td><td>'+esc(introExpected(i)?fmtMoney(introExpected(i)):'')+'</td>'+
+          '<td>'+esc(i.introduced_on||'')+'</td><td>'+esc(i.owner||'')+'</td></tr>';
+      }).join('')+'</tbody></table>';
+  }
+  function renderAll(){ renderSummary(); renderTable(); if(state.intros) renderIntros(); }
 
   async function loadAppData(){
     $('tableWrap').innerHTML = '<div class="empty"><div class="display">Loading…</div><p>Connecting to the database.</p></div>';
     try{
-      var results = await Promise.all([fetchAllDeals(), fetchAllBanksForMatching(), fetchActionItems()]);
-      state.deals = results[0]; state.banks = results[1];
+      var results = await Promise.all([fetchAllDeals(), fetchAllBanksForMatching(), fetchActionItems(), fetchIntros()]);
+      state.deals = results[0]; state.banks = results[1]; state.intros = results[3];
     }
     catch(e){ toast('Could not connect to the database — check your connection and refresh'); }
     renderAll();
